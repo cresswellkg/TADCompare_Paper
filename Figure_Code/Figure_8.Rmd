@@ -1,0 +1,681 @@
+---
+title: "Figure 8"
+author: "Kellen Cresswell"
+date: "April 8, 2019"
+output: pdf_document
+---
+
+```{r}
+require(cowplot)
+require(readr)
+require(dplyr)
+source("./Misc_Functions/bootstrapBoundaries.R")
+source("./Misc_Functions/CTCFatBoundary.R")
+require(tidyr)
+require(broom)
+require(BLMA)
+require(qdapRegex)
+```
+
+```{r}
+#Read in cells and tissues
+
+Cell_Res = bind_rows(readRDS("Results/All_TADs_Cells.rds"))
+Tis_Res = bind_rows(readRDS("Results/All_TADs_Tiss.rds"))
+
+Cell_Res = Cell_Res %>% mutate(Source = "Cell Line")
+Tis_Res = Tis_Res %>% mutate(Source = "Tissue")
+
+Cell_Occurences = Cell_Res %>% dplyr::select(file1, chr,Boundary, TAD_Score1) %>% filter(TAD_Score1>3) %>% dplyr::select(chr, file1, Boundary) %>% distinct() %>% group_by(chr, Boundary) %>% summarise(num_occ = n())
+
+Tis_Occurences = Tis_Res %>% dplyr::select(file1, chr,Boundary, TAD_Score1) %>% filter(TAD_Score1>3) %>% dplyr::select(chr, file1, Boundary) %>% distinct() %>% group_by(chr, Boundary) %>% summarise(num_occ = n())
+
+Cell_Occurences = Cell_Occurences %>% mutate(num_occ = ifelse( (num_occ>0) & (num_occ<=5), "1-5", ifelse(
+  (num_occ>5) & (num_occ<=10), "6-10", "11-20")))
+
+Tis_Occurences = Tis_Occurences %>% mutate(num_occ = ifelse( (num_occ>0) & (num_occ<=5), "1-5", ifelse(
+  (num_occ>5) & (num_occ<=10), "6-10", "11-20")))
+
+#Consensus TADs
+
+Consensus = readRDS("./Results/Consensus_Frames.rds") %>% dplyr::select(chr = chr, end = Coordinate, Consensus_Score)
+
+
+Consensus_Tis = readRDS("./Results/Consensus_Frames_Tis.rds") %>% dplyr::select(chr = chr, end = Coordinate, Consensus_Score)
+
+#Getting counts
+
+Consensus_Count = Consensus %>% mutate(Count_Cat = ifelse(Consensus_Score <2, "<2", ifelse (
+  (Consensus_Score > 2) & (Consensus_Score < 4), "2-4", ">4"
+)))
+
+Consensus_Count = Consensus_Count %>% group_by(Count_Cat) %>% summarise(counts =n())
+
+```
+
+```{r}
+trans_path = "C:\\Users\\cresswellkg\\Documents\\TADLearning2\\Markers\\Transcription\\"
+
+trans_files =paste0(trans_path, list.files(trans_path))
+
+Cons_trans =lapply(trans_files, function(x) {
+  curr_chrom = readr::read_table2(x, col_names = FALSE)
+  curr_chrom = curr_chrom[,c(1:3)]
+  colnames(curr_chrom) = c("chr", "start", "end")
+  form = rm_between(x, "Tfbs", "Gm", extract = TRUE)
+  feature = rm_between(x, "Gm12878", "Uni", extract = TRUE)
+  curr_state = paste0(form, "-", feature)
+  print(curr_state)
+  curr_res = Consensus %>% filter(Consensus_Score>3) %>% group_by(chr) %>% do(tidy(CTCFatBoundary(.$chr[1],., curr_chrom, 40000)))
+  curr_res = curr_res %>% mutate(state = curr_state)
+  return(curr_res)
+})
+
+Cons_trans = bind_rows(Cons_trans)
+```
+
+```{r}
+Cons_trans_Tis =lapply(trans_files, function(x) {
+  curr_chrom = readr::read_table2(x, col_names = FALSE)
+  curr_chrom = curr_chrom[,c(1:3)]
+  colnames(curr_chrom) = c("chr", "start", "end")
+  form = rm_between(x, "Tfbs", "Gm", extract = TRUE)
+  feature = rm_between(x, "Gm12878", "Uni", extract = TRUE)
+  curr_state = paste0(form, "-", feature)
+  print(curr_state)
+  curr_res = Consensus_Tis %>% filter(Consensus_Score>3) %>% group_by(chr) %>% do(tidy(CTCFatBoundary(.$chr[1],., curr_chrom, 40000)))
+  curr_res = curr_res %>% mutate(state = curr_state)
+  return(curr_res)
+})
+
+Cons_trans_Tis = bind_rows(Cons_trans_Tis)
+```
+```{r}
+Cons_boot =lapply(trans_files, function(x) {
+  curr_chrom = readr::read_table2(x, col_names = FALSE)
+  curr_chrom = curr_chrom[,c(1:3)]
+  colnames(curr_chrom) = c("chr", "start", "end")
+  form = rm_between(x, "Tfbs", "Gm", extract = TRUE)
+  feature = rm_between(x, "Gm12878", "Uni", extract = TRUE)
+  curr_state = paste0(form, "-", feature)
+  curr_res = Consensus %>% filter(Consensus_Score>3) %>% group_by(chr)  %>% do(tidy(bootstrapBoundaries(.$chr[1],., curr_chrom, 40000,40000, 10000 )))
+  curr_res = curr_res %>% mutate(state = curr_state)
+  print(curr_res)
+  return(curr_res)
+})
+
+
+```
+
+```{r}
+Cons_p = bind_rows(Cons_boot)  %>% group_by(state) %>% do(tidy(addCLT(as.numeric(.$perm_p[!is.na(.$perm_p)])))) 
+```
+
+```{r}
+trans_path = "C:\\Users\\cresswellkg\\Documents\\TADLearning2\\Markers\\Transcription\\"
+
+trans_files =paste0(trans_path, list.files(trans_path))
+
+Cons_Levs =lapply(trans_files, function(x) {
+  curr_chrom = readr::read_table2(x, col_names = FALSE)
+  curr_chrom = curr_chrom[,c(1:3)]
+  colnames(curr_chrom) = c("chr", "start", "end")
+  form = rm_between(x, "Tfbs", "Gm", extract = TRUE)
+  feature = rm_between(x, "Gm12878", "Uni", extract = TRUE)
+  curr_state = paste0(form, "-", feature)
+  curr_res = list()
+  index =  1
+  for (i in seq(2,6, by = 2)) {
+    
+  curr_res[[index]] = Consensus %>% filter( (Consensus_Score<i) & (Consensus_Score>(i-2)) ) %>% group_by(chr) %>% do(tidy(CTCFatBoundary(.$chr[1],., curr_chrom, 40000))) %>% mutate(Cutoff = i)
+  index = index+1
+  }
+  
+  curr_res = bind_rows(curr_res)
+  curr_res = curr_res %>% mutate(state = curr_state)
+  print(curr_res)
+  
+  return(curr_res)
+})
+
+Cons_Levs = bind_rows(Cons_Levs)
+```
+
+```{r}
+#BroadHMM
+
+broad_path = read_table2("C:\\Users\\cresswellkg\\Documents\\TADLearning2\\Markers\\wgEncodeBroadHmmGm12878HMM.bed.gz", col_names = FALSE)
+
+broad_path = broad_path[,1:4] 
+
+colnames(broad_path) = c("chr", "start", "end", "state")
+#Getting broadHMM by levels
+
+Broad_Levs =lapply(unique(broad_path$state), function(y) {
+  curr_chrom = broad_path %>% filter(state == y) %>% dplyr::select(chr,start,end)
+  curr_res = list()
+  index =  1
+  for (i in seq(2,6, by = 2)) {
+    
+  curr_res[[index]] = Consensus %>% filter( (Consensus_Score<i) & (Consensus_Score>(i-2)) ) %>% group_by(chr) %>% do(tidy(CTCFatBoundary(.$chr[1],., curr_chrom, 40000))) %>% mutate(Cutoff = i)
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  curr_res = curr_res %>% mutate(state = y)
+  print(curr_res)
+  return(curr_res)
+})
+
+Broad_Levs = bind_rows(Broad_Levs)
+
+Broad_En =lapply(unique(broad_path$state), function(y) {
+  curr_chrom = broad_path %>% filter(state == y) %>% dplyr::select(chr,start,end)
+  curr_res = list()
+  index =  1
+  for (i in seq(0,6, by = 2)) {
+    
+  curr_res[[index]] = Consensus %>% filter( (Consensus_Score<i) & (Consensus_Score>(i-1)) ) %>% group_by(chr) %>%  do(tidy(bootstrapBoundaries(.$chr[1],., curr_chrom, 40000,40000, 10000 ))) %>% mutate(Cutoff = i)
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  curr_res = curr_res %>% mutate(state = y)
+  print(curr_res)
+  return(curr_res)
+})
+
+Broad_En = bind_rows(Broad_En)
+
+```
+
+```{r}
+Cons_Broad =lapply(unique(broad_path$state), function(y) {
+  curr_chrom = broad_path %>% filter(state == y) %>% dplyr::select(chr,start,end)
+  curr_res = list()
+  index =  1
+  
+  curr_res= Consensus %>% filter( (Consensus_Score>3)) %>% group_by(chr) %>% do(tidy(CTCFatBoundary(.$chr[1],., curr_chrom, 40000))) 
+  index = index+1
+  curr_res = bind_rows(curr_res)
+  curr_res = curr_res %>% mutate(state = y)
+  print(curr_res)
+  return(curr_res)
+})
+
+Cons_Broad = bind_rows(Cons_Broad)
+```
+
+```{r}
+Cons_Broad_Tis =lapply(unique(broad_path$state), function(y) {
+  curr_chrom = broad_path %>% filter(state == y) %>% dplyr::select(chr,start,end)
+  curr_res = list()
+  index =  1
+  
+  curr_res= Consensus_Tis %>% filter( (Consensus_Score>3)) %>% group_by(chr) %>% do(tidy(CTCFatBoundary(.$chr[1],., curr_chrom, 40000))) 
+  index = index+1
+  curr_res = bind_rows(curr_res)
+  curr_res = curr_res %>% mutate(state = y)
+  print(curr_res)
+  return(curr_res)
+})
+
+Cons_Broad_Tis = bind_rows(Cons_Broad_Tis)
+```
+
+```{r}
+Broad_En = readRDS("./Results/Broad_Consensus_Boot.rds") %>% group_by(state, Cutoff) %>% mutate(type = names(sort(table(type), decreasing=TRUE)[1]))
+
+Cons_Broad = bind_rows(Broad_En)  %>% group_by(type, state, Cutoff) %>% do(tidy(addCLT(as.numeric(.$perm_p[!is.na(.$perm_p)])))) 
+
+```
+
+```{r}
+colnames(Cell_Occurences) = c("chr", "end", "Consensus_Score")
+colnames(Tis_Occurences) = c("chr", "end", "Consensus_Score")
+
+trans_En =lapply(unique(trans_files), function(x) {
+  form = rm_between(x, "Tfbs", "Gm", extract = TRUE)
+  feature = rm_between(x, "Gm12878", "Uni", extract = TRUE)
+  curr_state = paste0(form, "-", feature)
+  index =  1
+  if (curr_state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab") ) {
+  curr_chrom = readr::read_table2(x, col_names = FALSE)
+  curr_chrom = curr_chrom[,c(1:3)]
+  colnames(curr_chrom) = c("chr", "start", "end")
+  curr_res = list()
+  for (i in seq(0,6, by = 2)) {
+    
+  curr_res[[index]] = Consensus %>% filter( (Consensus_Score<i) & (Consensus_Score>(i-1)) ) %>% group_by(chr) %>%  do(tidy(bootstrapBoundaries(.$chr[1],., curr_chrom, 40000,40000, 10000 ))) %>% mutate(Cutoff = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = curr_state)
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  print(curr_res)
+  }
+  return(curr_res)
+})
+
+trans_En = bind_rows(trans_En)
+
+#Cell based on occurences
+
+trans_Cell =lapply(unique(trans_files), function(x) {
+  form = rm_between(x, "Tfbs", "Gm", extract = TRUE)
+  feature = rm_between(x, "Gm12878", "Uni", extract = TRUE)
+  curr_state = paste0(form, "-", feature)
+  index =  1
+  if (curr_state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab") ) {
+  curr_chrom = readr::read_table2(x, col_names = FALSE)
+  curr_chrom = curr_chrom[,c(1:3)]
+  colnames(curr_chrom) = c("chr", "start", "end")
+  curr_res = list()
+  for (i in unique(Cell_Occurences$Consensus_Score)) {
+    
+  curr_res[[index]] = Cell_Occurences %>% filter( (Consensus_Score==i)) %>% group_by(chr) %>%  do(tidy(bootstrapBoundaries(.$chr[1],., curr_chrom, 40000,40000, 10000 ))) %>% mutate(Cutoff = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = curr_state)
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  print(curr_res)
+  }
+  return(curr_res)
+})
+
+trans_Cell = bind_rows(trans_Cell)
+
+#Tissue based on occurences
+
+trans_Tis =lapply(unique(trans_files), function(x) {
+  form = rm_between(x, "Tfbs", "Gm", extract = TRUE)
+  feature = rm_between(x, "Gm12878", "Uni", extract = TRUE)
+  curr_state = paste0(form, "-", feature)
+  index =  1
+  if (curr_state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab") ) {
+  curr_chrom = readr::read_table2(x, col_names = FALSE)
+  curr_chrom = curr_chrom[,c(1:3)]
+  colnames(curr_chrom) = c("chr", "start", "end")
+  curr_res = list()
+  for (i in unique(Tis_Occurences$Consensus_Score)) {
+    
+  curr_res[[index]] = Tis_Occurences %>% filter( (Consensus_Score==i)) %>% group_by(chr) %>%  do(tidy(bootstrapBoundaries(.$chr[1],., curr_chrom, 40000,40000, 10000 ))) %>% mutate(Cutoff = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = curr_state)
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  print(curr_res)
+  }
+  return(curr_res)
+})
+
+trans_Tis = bind_rows(trans_Tis)
+
+
+```
+
+```{r}
+#Cell CTCF at boundary
+
+
+trans_Cell_CTCF =lapply(unique(trans_files), function(x) {
+  over_frame =rbind()
+  form = rm_between(x, "Tfbs", "Gm", extract = TRUE)
+  feature = rm_between(x, "Gm12878", "Uni", extract = TRUE)
+  curr_state = paste0(form, "-", feature)
+  index =  1
+  if (curr_state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab") ) {
+  curr_chrom = readr::read_table2(x, col_names = FALSE)
+  curr_chrom = curr_chrom[,c(1:3)]
+  colnames(curr_chrom) = c("chr", "start", "end")
+  curr_res = list()
+  for (i in unique(Cell_Occurences$Consensus_Score)) {
+    
+  curr_res[[index]] = Cell_Occurences %>% filter( (Consensus_Score==i)) %>% group_by(chr) %>% do(tidy(CTCFatBoundary(.$chr[1],., curr_chrom, 40000))) %>% mutate(Cutoff = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = curr_state)
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  over_frame = rbind(over_frame,curr_res)
+  }
+  return(over_frame)
+})
+
+trans_Cell_CTCF = bind_rows(trans_Cell_CTCF) %>% distinct()
+
+#Tissue CTCF at boundary
+
+trans_Tis_CTCF =lapply(unique(trans_files), function(x) {
+  over_frame =rbind()
+  form = rm_between(x, "Tfbs", "Gm", extract = TRUE)
+  feature = rm_between(x, "Gm12878", "Uni", extract = TRUE)
+  curr_state = paste0(form, "-", feature)
+  index =  1
+  if (curr_state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab") ) {
+  curr_chrom = readr::read_table2(x, col_names = FALSE)
+  curr_chrom = curr_chrom[,c(1:3)]
+  colnames(curr_chrom) = c("chr", "start", "end")
+  curr_res = list()
+  for (i in unique(Tis_Occurences$Consensus_Score)) {
+    
+  curr_res[[index]] = Tis_Occurences %>% filter( (Consensus_Score==i)) %>% group_by(chr) %>% do(tidy(CTCFatBoundary(.$chr[1],., curr_chrom, 40000))) %>% mutate(Cutoff = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = curr_state)
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  over_frame = rbind(over_frame,curr_res)
+  }
+  return(over_frame)
+})
+
+trans_Tis_CTCF = bind_rows(trans_Tis_CTCF)
+```
+
+```{r}
+Broad_Cell =lapply(unique(broad_path$state), function(y) {
+  curr_chrom = broad_path %>% filter(state == y) %>% dplyr::select(chr,start,end)
+  curr_res = list()
+  index =  1
+    curr_res = list()
+  for (i in unique(Cell_Occurences$Consensus_Score)) {
+    
+  curr_res[[index]] = Cell_Occurences %>% ungroup() %>% filter( (Consensus_Score==i)) %>% group_by(chr) %>% do(tidy(CTCFatBoundary(.$chr[1],., curr_chrom, 40000))) %>% mutate(Cutoff = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = y)
+
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  return(curr_res)
+})
+
+Broad_Cell = bind_rows(Broad_Cell)
+
+#Tissues
+
+Broad_Tis =lapply(unique(broad_path$state), function(y) {
+  curr_chrom = broad_path %>% filter(state == y) %>% dplyr::select(chr,start,end)
+  curr_res = list()
+  index =  1
+    curr_res = list()
+  for (i in unique(Tis_Occurences$Consensus_Score)) {
+    
+  curr_res[[index]] = Tis_Occurences %>% filter( (Consensus_Score==i)) %>% group_by(chr) %>% do(tidy(CTCFatBoundary(.$chr[1],., curr_chrom, 40000))) %>% mutate(Cutoff = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = y)
+
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  return(curr_res)
+})
+
+Broad_Tis = bind_rows(Broad_Tis)
+```
+
+```{r}
+Broad_Cell_P =lapply(unique(broad_path$state), function(y) {
+  curr_chrom = broad_path %>% filter(state == y) %>% dplyr::select(chr,start,end)
+  curr_res = list()
+  index =  1
+    curr_res = list()
+  for (i in unique(Cell_Occurences$Consensus_Score)) {
+    
+  curr_res[[index]] = Cell_Occurences %>% filter( (Consensus_Score==i)) %>% group_by(chr)  %>%  do(tidy(bootstrapBoundaries(.$chr[1],., curr_chrom, 40000,40000, 10000 ))) %>% mutate(Cutoff = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = curr_state)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = y)
+
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  return(curr_res)
+})
+
+Broad_Cell_P = bind_rows(Broad_Cell_P)
+
+#Tissues
+
+Broad_Tis_P =lapply(unique(broad_path$state), function(y) {
+  curr_chrom = broad_path %>% filter(state == y) %>% dplyr::select(chr,start,end)
+  curr_res = list()
+  index =  1
+    curr_res = list()
+  for (i in unique(Tis_Occurences$Consensus_Score)) {
+    
+  curr_res[[index]] = Tis_Occurences %>% filter( (Consensus_Score==i)) %>% group_by(chr)  %>%  do(tidy(bootstrapBoundaries(.$chr[1],., curr_chrom, 40000,40000, 10000 ))) %>% mutate(Cutoff = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = curr_state)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = y)
+
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  return(curr_res)
+})
+
+Broad_Tis_P = bind_rows(Broad_Tis_P)
+```
+
+
+
+```{r}
+
+trans_En = bind_rows(readRDS("./Results/Consensus_Trans_Boot.rds"))
+
+trans_En = trans_En %>% group_by(state) %>% mutate(form = unlist(rm_between(state, "Tfbs", "Gm", extract = TRUE)),feature = unlist(rm_between(state, "Gm12878", "Uni", extract = TRUE))) %>% ungroup() %>% mutate(
+  state = paste0(form, "-", feature)) %>% dplyr::select(-form, -feature)
+                                              
+
+Boot_Frame =bind_rows(trans_En, Broad_En) %>% group_by(state) %>% filter(type != "neither") %>% group_by(state,Cutoff) %>% mutate(type = names(sort(table(type), decreasing=TRUE)[1]))
+
+Boot_Frame = bind_rows(Boot_Frame)  %>% group_by(type, state, Cutoff) %>% filter(perm_p>0) %>% do(tidy(addCLT(as.numeric(.$perm_p[!is.na(.$perm_p)])))) 
+
+Boot_Frame_Sum = Boot_Frame %>% group_by(state,type) %>% filter(Cutoff != 2) %>% summarise(Mean_P = mean(x)) %>% arrange(Mean_P)
+
+Boot_Dep = Boot_Frame_Sum %>% filter(type == "depletion") %>% head(.,4)
+
+Boot_Frame = Boot_Frame %>% filter((state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab")   ) )
+
+Cons_Levs_Over = bind_rows(Broad_Cell, Cons_trans)
+Cons_Tis_Over = bind_rows(Broad_Tis, Cons_trans_Tis)
+
+```
+
+```{r}
+#Getting top 4 based on enrichment by boundary (selected so no repeats of markers)
+Enriched_4 = Cons_Levs %>% filter(Cutoff == 6) %>% group_by(state) %>% summarise(Mean_Bound = mean(x)) %>% arrange(-Mean_Bound) %>% mutate(ind = row_number()) %>% filter(ind %in% c(1,2,5,7)) %>% dplyr::select(-ind) 
+
+Cons_Levs_En = Cons_Levs# %>% filter(state %in% Enriched_4$state)
+
+Cons_Levs_En = Cons_Levs_En %>% mutate(Cutoff = paste0("<", Cutoff))
+
+Depleted_4 = Cons_Levs %>% filter( (Cutoff == 6) ) %>% group_by(state) %>% summarise(Mean_Bound = mean(x)) %>% arrange(-Mean_Bound) %>% mutate(ind = row_number()) %>% filter(ind %in% c(1,2,5,7)) %>% dplyr::select(-ind) 
+
+#Broad top 4 on enrichment
+
+Enriched_5_Broad = Broad_Levs %>% filter(Cutoff == 6) %>% group_by(state) %>% summarise(Mean_Bound = mean(x)) %>% arrange(-Mean_Bound) %>% mutate(ind = row_number()) %>% filter(ind %in% c(1:5)) %>% dplyr::select(-ind) 
+
+Broad_Levs_En = Broad_Levs #%>% filter(state %in% Enriched_5_Broad$state)
+
+Broad_Levs_En = Broad_Levs_En %>% mutate(Cutoff = paste0("<", Cutoff))
+
+#Plotting
+
+Enrich_Cons = ggplot(Cons_Levs_En, aes(x = as.factor(Cutoff), y = x, fill = as.factor(Cutoff))) +  theme_light(base_size = 18) + scale_x_discrete() + stat_boxplot(geom ='errorbar', linetype = "dashed", lwd = .8) +
+   geom_boxplot(position = position_dodge2(preserve = "single") , linetype = "dashed", lwd = .8)  + geom_boxplot(outlier.size = 0, coef = 0, lwd = 1.5, position = position_dodge2(preserve = "single"))  + 
+   theme(text = element_text(size=32), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + labs(x = "Cutoff", y = "Peaks at Boundary", fill = "Consensus Boundary Score") + facet_wrap(~state, ncol = 4, nrow = 1, scale = "free") + #+ stat_compare_means(method = "wilcox.test", comparisons = list(c("0", "Level 2"), c("Level 1", "Level 3"), c("Level 2", "Level 3")), size = 8)  +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + 
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 24), legend.title = element_text(size = 24), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 24)) 
+```
+
+```{r}
+ggsave("./manuscript/figures//Consensus_Enrichment_6.tiff", Enrich_Cons, dpi=300, height=5, width=7, units="in", scale=2.8)
+```
+
+```{r}
+
+Broad_Cons = ggplot(Broad_Levs_En, aes(x = as.factor(Cutoff), y = x, fill = as.factor(Cutoff))) +  theme_light(base_size = 18) + scale_x_discrete() + stat_boxplot(geom ='errorbar', linetype = "dashed", lwd = .8) +
+   geom_boxplot(position = position_dodge2(preserve = "single") , linetype = "dashed", lwd = .8)  + geom_boxplot(outlier.size = 0, coef = 0, lwd = 1.5, position = position_dodge2(preserve = "single"))  + 
+   theme(text = element_text(size=32), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + labs(x = "Cutoff", y = "Peaks at Boundary", fill = "Consensus Boundary Score") + facet_wrap(~state, ncol = 5, nrow = 1, scale = "free") + #+ stat_compare_means(method = "wilcox.test", comparisons = list(c("0", "Level 2"), c("Level 1", "Level 3"), c("Level 2", "Level 3")), size = 8)  +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + 
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 24), legend.title = element_text(size = 24), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 24)) 
+```
+
+```{r}
+ggsave("./manuscript/figures//Consensus_Broad.tiff", Broad_Cons, dpi=300, height=5, width=7, units="in", scale=2.8)
+```
+
+```{r}
+All_TADs = read_csv("./Results/All_TADs.csv", col_names = TRUE)
+
+All_TADs = All_TADs %>% mutate(file1 = gsub("\\.40Kb.*", "",file1), file2 = gsub("\\.40Kb.*", "",file2))
+
+All_TADs_Rep = All_TADs %>% filter(gsub('[0-9]+', '', file1) == gsub('[0-9]+', '', file2))
+
+
+#Get mappings
+
+lab_conv = read_csv("sample_descriptions.csv", col_names = FALSE)[,c(1:4 )]
+colnames(lab_conv) = c("Full", "Abb", "Line", "Category")
+
+All_TADs =left_join(All_TADs, lab_conv, c("file1" = "Abb"))
+All_TADs = left_join(All_TADs, lab_conv, c("file2" = "Abb"))
+
+#Getting mean for categories
+
+Cat_Frame = lab_conv %>% dplyr::select(Abb, Line)
+
+All_TADs_Rep = left_join(All_TADs_Rep, Cat_Frame, c("file1" = "Abb"))
+
+All_TADs_Rep = All_TADs_Rep %>% filter(Line == "cell line")
+```
+
+```{r}
+TAD_Bounds = readRDS("./Results/Consensus_Frames.rds") %>% dplyr::select(-Coordinate, -Consensus_Score, -chr)
+```
+
+```{r}
+Boot_p = Boot_Frame %>% filter(type == "enrichment")
+
+Boot_p_Dep = Boot_Frame %>% filter(type == "depletion")
+
+```
+
+```{r}
+Boot_p = Boot_Frame %>% mutate(log10_p = log10(as.numeric(x)))
+Boot_p_Dep = Boot_p_Dep %>% mutate(log10_p = log10(as.numeric(x)))
+
+```
+
+```{r}
+#Subset and clean up
+Boot_p = Boot_p %>% filter(state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab") ) %>% group_by(state)  %>% ungroup() %>% mutate(state = gsub("Sydh-Ctcfsc15914c20", "CTCF", state), state = gsub("Sydh-Rad21Iggrab", "RAD21", state)) %>% mutate(state = gsub(".*_", "", state)) %>% group_by(state) %>% mutate(mean_log = mean(abs(log10_p))) %>% ungroup()
+
+Boot_p = Boot_p %>% arrange(-mean_log) %>% mutate(state = factor(state,levels = rev(unique(state) )))
+```
+
+```{r}
+Boot_p_Dep = Boot_p_Dep %>% filter(state %in% Boot_Dep$state ) %>% group_by(state)  %>% ungroup() %>% mutate(state = gsub("Sydh-P300Iggmus", "P300Iggmus", state), state = gsub("Haib-Bcl11aPcr1x", "Bcl11aPcr1x", state),  state = gsub("Sydh-Tblr1ab24550Iggmus", "Tblr1ab24550Iggmus", state), state = gsub("4_Strong_Enhancer", "Strong_Enhancer", state)) %>%  group_by(state) %>% mutate(mean_log = mean(abs(log10_p))) %>% ungroup()
+
+Boot_p_Dep = Boot_p_Dep %>% arrange(-mean_log) %>% mutate(state = factor(state,levels = rev(unique(state) )))
+
+```
+
+```{r}
+#Set depletion to negative
+Boot_p = Boot_p %>% mutate(log10_p = ifelse(type=="depletion", -log10_p, log10_p))
+
+Full_Boot = ggplot(data = Boot_p,  aes(x = state, y = -log10_p, fill = as.factor(Cutoff)))  +  theme_light(base_size = 24) + scale_x_discrete() +
+   geom_bar(stat = "identity",  position = position_dodge(-.9)) +
+   theme(text = element_text(size=24), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + coord_flip() +  labs(x = "Genomic Feature", y = "-Log10 P-value", fill = "Type of Boundary")  + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 24), legend.title = element_text(size = 24), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 24)) + guides(fill = FALSE) + geom_hline(yintercept=0)
+
+Full_Boot_Dep = ggplot(data = Boot_p_Dep,  aes(x = state, y = -log10_p, fill = as.factor(Cutoff)))  +  theme_light(base_size = 24) + scale_x_discrete() +
+   geom_bar(stat = "identity",  position = position_dodge(-.9)) +
+   theme(text = element_text(size=24), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + coord_flip() +  labs(x = "Genomic Feature", y = "-Log10 P-value", fill = "Type of Boundary")  + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 24), legend.title = element_text(size = 24), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 24)) + guides(fill = FALSE)
+```
+
+```{r}
+Overall_Levs = bind_rows(Cons_Levs_En, Broad_Levs_En)
+
+Overall_Levs = Overall_Levs  %>% filter(state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab") ) %>% group_by(state)  %>% ungroup() %>% mutate(state = gsub("Sydh-Ctcfsc15914c20", "CTCF", state), state = gsub("Sydh-Rad21Iggrab", "RAD21", state)) %>% mutate(state = gsub(".*_", "", state)) 
+```
+
+```{r}
+ggsave("./manuscript/figures//Full_Boot.png", Full_Boot + guides(fill = FALSE), dpi=600, height=2.5, width=3.5, units="in", scale=2.8)
+
+ggsave("./manuscript/figures//Full_Boot_Dep.tiff", Full_Boot_Dep + guides(fill = FALSE), dpi=600, height=2.5, width=3.5, units="in", scale=2.8)
+```
+
+
+```{r}
+#Arrange p-values by mean log
+Boot_p = Boot_p %>% arrange(-mean_log)
+
+#Make order match p-value plot
+
+Overall_Levs = Overall_Levs %>% mutate(state = factor(state, levels = unique(Boot_p$state)))
+
+Overall_Levs$state = gsub(".*_", "", Overall_Levs$state)
+
+Boot_p$state = gsub(".*_", "",Boot_p$state)
+
+Overall_Levs = Overall_Levs %>% mutate(state = factor(state, levels = unique(Boot_p$state)))
+
+Overall_Levs = Overall_Levs %>% mutate(
+                                       Cutoff = gsub("<4", "2-4", Cutoff),
+                                       Cutoff = gsub("<6", ">4", Cutoff)
+                                       )
+
+Overall_Levs = Overall_Levs %>% mutate(state = factor(state,levels = unique(state) )) %>% 
+  mutate(Cutoff = factor(Cutoff, levels = c("<2", "2-4", ">4")))
+
+Overall_Cons = ggplot(Overall_Levs, aes(x = as.factor(Cutoff), y = x, fill = as.factor(Cutoff))) +  theme_light(base_size = 18) + scale_x_discrete() + stat_boxplot(geom ='errorbar', linetype = "dashed", lwd = .8) +
+   geom_boxplot(position = position_dodge2(preserve = "single") , linetype = "dashed", lwd = .8)  + geom_boxplot(outlier.size = 0, coef = 0, lwd = 1.5, position = position_dodge2(preserve = "single"))  + 
+   theme(text = element_text(size=32), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + labs(x = "Cutoff", y = "Peaks at Boundary", fill = "Consensus Boundary Score") + facet_wrap(~state, ncol = 5, nrow = 1, scale = "free") + #+ stat_compare_means(method = "wilcox.test", comparisons = list(c("0", "Level 2"), c("Level 1", "Level 3"), c("Level 2", "Level 3")), size = 8)  +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + 
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 24), legend.title = element_text(size = 24), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 24)) 
+
+leg = get_legend(Overall_Cons)
+
+Overall_Cons = ggplot(Overall_Levs, aes(x = as.factor(Cutoff), y = x, fill = as.factor(Cutoff))) +  theme_light(base_size = 18) + scale_x_discrete() + stat_boxplot(geom ='errorbar', linetype = "dashed", lwd = .8) +
+   geom_boxplot(position = position_dodge2(preserve = "single") , linetype = "dashed", lwd = .8)  + geom_boxplot(outlier.size = 0, coef = 0, lwd = 1.5, position = position_dodge2(preserve = "single"))  + 
+   theme(text = element_text(size=24), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + labs(x = "Cutoff", y = "Peaks at Boundary", fill = "Consensus Boundary Score") + facet_wrap(~state, ncol = 4, nrow = 1, scale = "free") + stat_compare_means(method = "wilcox.test", comparisons = list(c(">4", "2-4"), c(">4", "<2")), size = 6)  +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + 
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 24), legend.title = element_text(size = 24), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 20)) + guides(fill = FALSE) 
+
+Overall_Cons = ggRound(Overall_Cons)
+```
+
+```{r}
+ggsave("./manuscript/figures//Consensus_Overall.tiff", Overall_Cons, dpi=600, height=2.5, width=3.5, units="in", scale=2.8)
+
+ggsave("./manuscript/figures//Consensus_Legend.tiff", leg, dpi=600, height=2.5, width=3.5, units="in", scale=3.0)
+```

@@ -1,0 +1,102 @@
+---
+title: "Supplementary_Figure_6"
+author: "Kellen Cresswell"
+date: "April 17, 2019"
+output: html_document
+---
+
+```{r}
+Compare_10 = readRDS("./Results/Compare_Time_10kb.rds") %>% as.data.frame(.) %>% mutate(Resolution = "10kb") %>% mutate(chr = paste0("chr", c(1, 3:22, 2)))
+
+Compare_25 = readRDS("./Results/Compare_Time_25kb.rds")  %>% as.data.frame(.) %>% mutate(Resolution = "25kb") %>% mutate(chr = paste0("chr", 1:22))
+
+Compare_50 = readRDS("./Results/Compare_Time_50kb.rds")  %>% as.data.frame(.) %>% mutate(Resolution = "50kb") %>% mutate(chr = paste0("chr", 1:22))
+
+Compare_100 = readRDS("./Results/Compare_Time_100kb.rds") %>% as.data.frame(.) %>% mutate(Resolution = "100kb") %>% mutate(chr = paste0("chr", 22:1))
+
+Compare_2 = bind_rows(Compare_10, Compare_25, Compare_50, Compare_100)
+
+#10kb
+
+Multi_4_10 = readRDS("./Results/Compare_Multi_4_10kb.rds") %>% as.data.frame(.) %>% mutate(Replicates = 4, Resolution = "10kb")  %>% mutate(chr = paste0("chr", c(1, 3:22, 2)))
+
+Multi_8_10 = readRDS("./Results/Compare_Multi_8_10kb.rds") %>% as.data.frame(.) %>% mutate(Replicates = 8, Resolution = "10kb")  %>% mutate(chr = paste0("chr", c(1, 3:22, 2)))
+
+Multi_12_10 = readRDS("./Results/Compare_Multi_12_10kb.rds") %>% as.data.frame(.) %>% mutate(Replicates = 12, Resolution = "10kb")  %>% mutate(chr = paste0("chr", c(1, 3:22, 2)))
+
+#25kb
+
+Multi_4_25 = readRDS("./Results/Compare_Multi_4_25kb.rds") %>% as.data.frame(.) %>% mutate(Replicates = 4, Resolution = "25kb")  %>% mutate(chr = paste0("chr", 1:22))
+
+Multi_8_25 = readRDS("./Results/Compare_Multi_8_25kb.rds") %>% as.data.frame(.) %>% mutate(Replicates = 8, Resolution = "25kb")  %>% mutate(chr = paste0("chr", 1:22))
+
+Multi_12_25 = readRDS("./Results/Compare_Multi_12_25kb.rds") %>% as.data.frame(.) %>% mutate(Replicates = 12, Resolution = "25kb")  %>% mutate(chr = paste0("chr", 1:22))
+
+#50kb
+
+Multi_4_50 = readRDS("./Results/Compare_Multi_4_50kb.rds") %>% as.data.frame(.) %>% mutate(Replicates = 4, Resolution = "50kb")  %>% mutate(chr = paste0("chr", 1:22))
+
+Multi_8_50 = readRDS("./Results/Compare_Multi_8_50kb.rds") %>% as.data.frame(.) %>% mutate(Replicates = 8, Resolution = "50kb")  %>% mutate(chr = paste0("chr", 1:22))
+
+Multi_12_50 = readRDS("./Results/Compare_Multi_12_50kb.rds") %>% as.data.frame(.) %>% mutate(Replicates = 12, Resolution = "50kb")  %>% mutate(chr = paste0("chr", 1:22))
+
+
+#100kb
+
+Multi_4_100 = readRDS("./Results/Compare_Multi_4_100kb.rds") %>% as.data.frame(.) %>% mutate(Replicates = 4, Resolution = "100kb") %>% mutate(chr = paste0("chr", 22:1))
+
+Multi_8_100 = readRDS("./Results/Compare_Multi_8_100kb.rds") %>% as.data.frame(.) %>% mutate(Replicates = 8, Resolution = "100kb") %>% mutate(chr = paste0("chr", 22:1))
+
+Multi_12_100 = readRDS("./Results/Compare_Multi_12_100kb.rds") %>% as.data.frame(.) %>% mutate(Replicates = 12, Resolution = "100kb") %>% mutate(chr = paste0("chr", 22:1))
+
+
+Compare_2 = as.data.frame(Compare_2)
+
+Multi_Over = bind_rows(Multi_4_10,Multi_8_10, Multi_12_10, 
+                       Multi_4_25,Multi_8_25, Multi_12_25,
+                       Multi_4_50,Multi_8_50, Multi_12_50,
+                       Multi_4_100,Multi_8_100, Multi_12_100 )
+
+colnames(Compare_2)[6] = "Time"
+colnames(Multi_Over)[6] = "Time"
+```
+
+```{r}
+Compare_2 = Compare_2 %>% mutate(Resolution = factor(Resolution, levels = c("10kb", "25kb", "50kb", "100kb")))
+
+Multi_Over = Multi_Over %>% mutate(Resolution = factor(Resolution, levels = c("10kb", "25kb", "50kb", "100kb")))
+
+Compare_2 = Compare_2 %>% mutate(chr = factor(chr, levels = paste0("chr", 1:22)))
+Multi_Over = Multi_Over %>% mutate(chr = factor(chr, levels = paste0("chr", 1:22)))
+
+
+Compare_Plot = ggplot(Compare_2, aes(x = chr, y = Time, group = Resolution, color = Resolution)) +  theme_light(base_size = 24) + geom_line(size = 2) + geom_point(size = 4) +
+   theme(text = element_text(size=24), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + labs(x = "Number of Bins", y = "Time in Seconds")  + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 24), legend.title = element_text(size = 24), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 24), strip.text.x = element_text(size = 24)) + scale_y_log10()  +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, size = 24)) 
+
+Multi_Plot = ggplot(Multi_Over, aes(x = size, y = Time, color = as.factor(Replicates))) +  theme_light(base_size = 24) + geom_point(size = 4) + geom_smooth(size = 4, aes(color = as.factor(Replicates)), se = F) +
+   theme(text = element_text(size=24), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + scale_x_continuous(breaks = dampack::number_ticks(4)) + labs(x = "Chromosome", y = "Time in Seconds", color = "Number of Replicates")  + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 24), legend.title = element_text(size = 24), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 24))  + facet_wrap(~Resolution, nrow = 1, scales = "free") +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, size = 24)) 
+
+```
+
+```{r}
+ggsave("./manuscript/figures//TADCompare_Plot.tiff", Compare_Plot, dpi=600, height=2.5, width=5, units="in", scale=2.8)
+
+ggsave("./manuscript/figures//MultiCompare_Plot.tiff", Multi_Plot, dpi=600, height=2.5, width=5, units="in", scale=2.8)
+```
+
+```{r}
+Multi_Sum = Multi_Over %>% group_by(Replicates, Resolution) %>% summarise(Mean_Sum = sum(mean))
+
+Multi_Sum
+
+Compare_Sum = Compare_2 %>% group_by(Resolution) %>% summarise(Mean_Sum = sum(mean))
+
+```

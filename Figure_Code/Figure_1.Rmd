@@ -1,0 +1,55 @@
+---
+title: "Figure_1"
+author: "Kellen Cresswell"
+date: "April 2, 2019"
+output: pdf_document
+---
+
+```{r}
+require(ggplot2)
+require(readr)
+require(dplyr)
+source("Misc_Functions/abs_log.R")
+```
+
+```{r}
+#Read in indices
+
+Long_Sim = readRDS("Long_Simulated_Indices.rds")
+```
+
+```{r}
+#Plot methods
+
+fig3 = ggplot(data = Long_Sim %>% filter( (Index>130) & (Index<190)), aes(x = Index, y = abs_log(value),  color= as.factor(key))) +
+  geom_line(aes(group = as.factor(key))) + geom_line(size = 2) + theme_bw()  + theme(text = element_text(size=20), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.border = element_blank(),  panel.background = element_blank()) + labs(x = "Bin", y = "Score", color = "Method")
+
+```
+
+```{r}
+#Getting summary statistics
+
+#Plotting area round TAD boundaries
+
+dist_red = Long_Sim %>% filter(abs(Bound_Dist)<11)
+
+sum_stats = Rmisc::summarySE(dist_red %>% mutate(value = abs_log(value)), measurevar = "value", groupvars =c("key","Bound_Dist") , na.rm = TRUE)
+
+sum_stats = sum_stats %>% group_by(key) %>% mutate(value = value-min(value))
+
+
+fig_sum = ggplot(sum_stats, aes(x=Bound_Dist, y=value, colour=key)) + 
+    geom_ribbon(aes(ymin=value-se, ymax=value+se), alpha=0.1) +
+    geom_line(size = 4)  + theme_bw()  + theme(text = element_text(size=24), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.border = element_blank(),  panel.background = element_blank()) + labs(y = "Signed Log2(Score)", x = "Distance from TAD Boundary", color = "Method") + theme_bw()  + theme(text = element_text(size=24), axis.text.x = element_text(size = 24), axis.text.y = element_text(size = 24), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.border = element_blank(),  panel.background = element_blank(), legend.text=element_text(size=24), legend.title = element_text(size = 24), legend.position= c(.83,.8)) + labs(x = "Distance from TAD Boundary", y = "Score", color = "Method")
+```
+
+```{r}
+ggsave("./manuscript/figures//Index_Plot.tiff", fig3, dpi=300, height=5, width=7, units="in", scale=1.8)
+
+ggsave("./manuscript/figures//Index_Sum.tiff", fig_sum, dpi=600, height=5, width=7, units="in", scale=1.8)
+```
+
+```{r}
+
+ggplot(data = Long_Sim %>% filter( (Index>130) & (Index<190)), aes(x = Index, y = abs_log(value),  color= as.factor(key)))
+```

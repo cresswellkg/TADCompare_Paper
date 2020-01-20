@@ -1,0 +1,141 @@
+---
+title: "Figure_4_New"
+author: "Kellen Cresswell"
+date: "April 17, 2019"
+output: pdf_document
+---
+
+```{r}
+require(dplyr)
+require(ggpubr)
+require(broom)
+require(BLMA)
+source("./Misc_Functions/ggRound.R")
+```
+
+```{r}
+rep_res = bind_rows(readRDS("Results/Replicate_Results.rds"))
+```
+
+```{r}
+
+rep_res = rep_res %>% mutate(Type = gsub("^Merge$", "Merge-Split", Type),
+                              Type = gsub("^Split$", "Merge-Split", Type))
+
+rep_res =rep_res %>% mutate(Type = gsub("Differential", "Complex", Type))
+
+#Summary of changes
+rep_sum = rep_res %>% filter(!is.na(Type)) %>% group_by(chr, Replicate) %>% mutate(Count =n()) %>% group_by(chr, Replicate, Type) %>% summarise(Per_Diff = n()/Count[1]) 
+
+rep_scores = rep_sum %>% group_by(Replicate, Type) %>% summarise(Mean_Diff = round(mean(Per_Diff)*100,2), SD_Diff = round(sd(Per_Diff)*100,2), Min_Diff = round(min(Per_Diff)*100,2), Max_Diff = round(max(Per_Diff)*100,2))
+
+colnames(rep_scores)[3:6] = c("Mean", "Standard Deviation", "Minimum",
+                              "Maximum")
+
+
+
+write.csv(rep_scores, "./manuscript/tables/Supplementary_Table_1.csv", quote = FALSE, row.names = FALSE)
+
+#Overall summary
+
+over_sum = rep_res %>%  filter(!is.na(Type)) %>% group_by(Replicate) %>% mutate(Count =n()) %>% group_by(Replicate, Type) %>% mutate(Tot_Diff = n()/Count[1])
+
+rep_sum = rep_sum %>% filter(Type != "Non-Differential") %>% mutate(Type = factor(Type, levels = c("Complex", "Strength Change", "Merge-Split", "Shifted")))
+```
+
+```{r}
+Diff_Plot = ggplot(rep_sum %>% filter(Per_Diff<.2), aes(x = as.factor(Replicate), y = Per_Diff, fill = as.factor(Replicate))) +  theme_light(base_size = 24) + scale_x_discrete() + stat_boxplot(geom ='errorbar', linetype = "dashed", lwd = .8) +
+   geom_boxplot(position = position_dodge2(preserve = "single") , linetype = "dashed", lwd = .8)  + geom_boxplot(outlier.size = 0, coef = 0, lwd = 1.5, position = position_dodge2(preserve = "single"))  + 
+   theme(text = element_text(size=24), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + labs(x = "Type of Replicate", y = "Proportion of Boundaries", fill = "Type of Replicate") + facet_wrap(.~Type, nrow = 1) +stat_compare_means(method = "wilcox.test", comparisons = list(c("Biological", "Technical")), size = 6)  +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + 
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 20), legend.title = element_text(size = 20), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 18))
+
+Diff_Plot = ggRound(Diff_Plot)
+```
+
+```{r}
+ggsave("./manuscript/figures//Replicate_Plot.tiff", Diff_Plot, dpi=600, height=2.5, width=3.5, units="in", scale=2.8)
+```
+
+```{r}
+Comp_CTCF = bind_rows(readRDS("./Results/Comp_trans_Occ.rds") %>%  group_by(state) %>% mutate(form = rm_between(state, "Tfbs", "Gm", extract = TRUE)[[1]],
+  feature = rm_between(state, "Gm12878", "Uni", extract = TRUE)[[1]]) %>% ungroup() %>% mutate(
+  state = paste0(form, "-", feature)) %>% dplyr::select(-feature,-form), readRDS("./Results/Comp_Enrichment_Occ.rds"))
+
+Comp_Boot = bind_rows(readRDS("./Results/Comp_trans_Occ_P.rds") %>%  group_by(state) %>% mutate(form = rm_between(state, "Tfbs", "Gm", extract = TRUE)[[1]],
+  feature = rm_between(state, "Gm12878", "Uni", extract = TRUE)[[1]]) %>% ungroup() %>% mutate(
+  state = paste0(form, "-", feature)) %>% dplyr::select(-feature,-form), readRDS("./Results/Comp_Boot_Occ.rds"))
+
+Comp_Boot = Comp_Boot %>% group_by(state) %>% mutate(type = names(sort(table(type), decreasing=TRUE)[1]))
+
+Comp_Boot = Comp_Boot %>% filter(perm_p != 0 )
+
+Comp_Boot = Comp_Boot %>% mutate(Cutoff = ifelse(Cutoff == "Differential", "Complex", Cutoff))
+
+Comp_CTCF = Comp_CTCF %>% mutate(Cutoff = ifelse(Cutoff == "Differential", "Complex", Cutoff))
+
+Comp_p = bind_rows(Comp_Boot)  %>% group_by(state, type, Cutoff) %>% do(tidy(fisherMethod(as.numeric(.$perm_p[!is.na(.$perm_p)])))) 
+
+Comp_p =  Comp_p %>% filter(state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab") ) %>% group_by(state)  %>% ungroup() %>% mutate(state = gsub("Sydh-Ctcfsc15914c20", "CTCF", state), state = gsub("Sydh-Rad21Iggrab", "RAD21", state)) %>% mutate(state = gsub(".*_", "", state), state = factor(state, levels = c("CTCF", "RAD21", "Insulator", "Heterochrom/lo"))) %>% arrange(state)
+
+Comp_p = Comp_p %>% mutate(log10_p = log10(x )) %>% mutate(mean_log = mean(log10_p)) %>% group_by(state) %>% arrange(mean_log)
+
+Comp_p = Comp_p %>% mutate(type = factor(type, levels = unique(type)))
+
+
+```
+
+```{r}
+require(scales)
+cols <- hue_pal()(5)
+
+Comp_p = Comp_p %>% mutate(Cutoff = factor(Cutoff, levels = c("Non-Differential", "Complex", "Merge-Split", "Shifted", "Strength Change")))
+
+Comp_Boot_Plot = ggplot(data = Comp_p,  aes(x = reorder(state, desc(state)), y = -log10_p, fill = as.factor(Cutoff)))  +  theme_light(base_size = 18)  +scale_x_discrete() + 
+   geom_bar(stat = "identity",  position = position_dodge(-.9)) +
+   theme(text = element_text(size=24), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + coord_flip() +  labs(x = "Genomic Feature", y = "-Log10 P-value", fill = "Type of Boundary")  + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 20), legend.title = element_text(size = 20), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 18)) + guides(fill = FALSE) + scale_fill_manual(values = rev(cols)[c(3,1:2,4:5)])
+```
+
+```{r}
+Comp_CTCF = Comp_CTCF %>% filter(state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab") ) %>% group_by(state) %>% ungroup() %>% mutate(state = gsub("Sydh-Ctcfsc15914c20", "CTCF", state), state = gsub("Sydh-Rad21Iggrab", "RAD21", state)) %>% mutate(state = gsub(".*_", "", state)) %>% mutate(state = factor(state, levels = c("CTCF", "RAD21", "Insulator", "Heterochrom/lo")))
+```
+
+```{r}
+Comp_CTCF = Comp_CTCF %>% mutate(Cutoff = factor(Cutoff, levels = c("Non-Differential", "Complex", "Merge-Split", "Shifted", "Strength Change")))
+
+CTCF_Plot = ggplot(Comp_CTCF, aes(x = as.factor(Cutoff), y = x, fill = as.factor(Cutoff))) +  theme_light(base_size = 18) + scale_x_discrete() + stat_boxplot(geom ='errorbar', linetype = "dashed", lwd = .8) +
+   geom_boxplot(position = position_dodge2(preserve = "single") , linetype = "dashed", lwd = .8)  + geom_boxplot(outlier.size = 0, coef = 0, lwd = 1.5, position = position_dodge2(preserve = "single"))  + 
+   theme(text = element_text(size=24), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + labs(x = "Cutoff", y = "Peaks at Boundary", fill = "Differential Boundary Type") +  facet_wrap(~state, ncol = 4, nrow = 1, scale = "free") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + 
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 20), legend.title = element_text(size = 20), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 18))  + scale_fill_manual(values = rev(cols)[c(3,1:2,4:5)])
+
+
+
+```
+
+```{r}
+Comp_Leg = get_legend(CTCF_Plot)
+
+ggsave("./manuscript/figures/Comp_CTCF_Plot.tiff", CTCF_Plot + guides(fill = FALSE), dpi=600, height=2.5, width=3.5, units="in", scale=2.8)
+
+ggsave("./manuscript/figures//Comp_Boot_Plot.tiff", Comp_Boot_Plot, dpi=600, height=2.5, width=3.5, units="in", scale=2.8)
+
+ggsave("./manuscript/figures//Comp_Leg.tiff", Comp_Leg, dpi=600, height=2.5, width=5, units="in", scale=3.5)
+ ```

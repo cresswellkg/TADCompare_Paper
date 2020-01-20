@@ -1,0 +1,392 @@
+---
+title: "Figure_7"
+author: "Kellen Cresswell"
+date: "April 25, 2019"
+output: pdf_document
+---
+
+```{r}
+source("./Misc_Functions/CTCFatBoundary.R")
+source("./Misc_Functions/bootstrapBoundaries.R")
+require(dplyr)
+require(readr)
+require(scales)
+
+cols <- hue_pal()(6)
+```
+
+```{r}
+
+Time_50kb = readRDS("./Results/Time_Results_50kb.rds")
+Time_100kb = readRDS("./Results/Time_Results_Full_100kb.rds")
+
+```
+
+```{r}
+trans_path = "C:\\Users\\cresswellkg\\Documents\\TADLearning2\\Markers\\Transcription\\"
+
+trans_files =paste0(trans_path, list.files(trans_path))
+```
+
+```{r}
+#Getting TADs
+
+Consensus_50kb = lapply(Time_50kb, function(x) x$Consensus)
+
+index = 1
+for (i in paste0("chr", 22:1)) {
+  
+Consensus_50kb[[index]] = data.frame(chr = i, Consensus_50kb[[index]])
+index = index+1
+}
+
+Consensus_50kb_Bound = bind_rows(Consensus_50kb) %>% dplyr::select(-Consensus_Score)
+
+Consensus_50kb = bind_rows(Consensus_50kb) %>% dplyr::select(-Coordinate, -Consensus_Score)
+
+TAD_Rows = apply(Consensus_50kb[,c(2:5)],1, function(x) any(x>3))
+
+Consensus_50kb = Consensus_50kb[TAD_Rows,]
+
+Consensus_50kb_Bound = Consensus_50kb_Bound[TAD_Rows,]
+
+Consensus_Sum = Consensus_50kb %>% group_by(chr) %>% mutate(Total = n()) %>% 
+  group_by(Category, chr) %>% summarise(Category_Counts = n()/Total[1])
+
+Consensus_Over = Consensus_50kb %>% mutate(Total = n()) %>% 
+  group_by(Category) %>% summarise(Count =n(), Category_Counts = n()/Total[1])
+
+```
+
+```{r}
+Consensus_Sum = Consensus_Sum %>% ungroup() %>% mutate(Category = gsub(" TAD", "",Category)) %>%  mutate(Category = factor(Category, levels = c("Highly Common", "Early Appearing", "Late Appearing", "Early Disappearing", "Late Disappearing", "Dynamic")))
+
+Auxin_Summary = ggplot(Consensus_Sum, aes(x = as.factor(Category), y = Category_Counts, fill = as.factor(Category))) +  theme_light(base_size = 18) + scale_x_discrete() + stat_boxplot(geom ='errorbar', linetype = "dashed", lwd = .8) +
+   geom_boxplot(position = position_dodge2(preserve = "single") , linetype = "dashed", lwd = .8)  + geom_boxplot(outlier.size = 0, coef = 0, lwd = 1.5, position = position_dodge2(preserve = "single"))  + 
+   theme(text = element_text(size=32), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + labs(y = "Percentage Type", fill = "Temporal boundary type") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + 
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 24), legend.title = element_text(size = 24), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 24)) +
+  scale_fill_manual(values = rev(cols)[c(4, 1:3,5:6)])
+```
+
+```{r}
+#Getting TADs
+
+Consensus_100kb = lapply(Time_100kb, function(x) x$Consensus)
+
+index = 1
+for (i in paste0("chr", 22:1)) {
+  
+Consensus_100kb[[index]] = data.frame(chr = i, Consensus_100kb[[index]])
+index = index+1
+}
+
+Consensus_100kb = bind_rows(Consensus_100kb) %>% dplyr::select(-Coordinate, -Consensus_Score)
+
+TAD_Rows = apply(Consensus_100kb[,c(1:4)],1, function(x) any(x>3))
+
+Consensus_100kb = Consensus_100kb[TAD_Rows,]
+
+Consensus_Sum_100kb = Consensus_100kb %>% group_by(chr) %>% mutate(Total = n()) %>% 
+  group_by(Category, chr) %>% summarise(Category_Counts = n()/Total[1])
+
+```
+
+```{r}
+Auxin_Summary_100kb = ggplot(Consensus_Sum_100kb, aes(x = as.factor(Category), y = Category_Counts, fill = as.factor(Category))) +  theme_light(base_size = 18) + scale_x_discrete() + stat_boxplot(geom ='errorbar', linetype = "dashed", lwd = .8) +
+   geom_boxplot(position = position_dodge2(preserve = "single") , linetype = "dashed", lwd = .8)  + geom_boxplot(outlier.size = 0, coef = 0, lwd = 1.5, position = position_dodge2(preserve = "single"))  + 
+   theme(text = element_text(size=32), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + labs(y = "Percentage Type", fill = "Temporal boundary type") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + 
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 24), legend.title = element_text(size = 24), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 24))
+```
+
+```{r}
+#Bootstrap boundary
+
+Consensus_50kb_Bound = Consensus_50kb_Bound %>% dplyr::select(chr, end=Coordinate, Category)
+
+trans_path = "C:\\Users\\cresswellkg\\Documents\\TADLearning2\\Markers\\Transcription\\"
+
+trans_files =paste0(trans_path, list.files(trans_path))
+
+trans_Temp =lapply(unique(trans_files), function(x) {
+  form = rm_between(x, "Tfbs", "Gm", extract = TRUE)
+  feature = rm_between(x, "Gm12878", "Uni", extract = TRUE)
+  curr_state = paste0(form, "-", feature)
+  index =  1
+  if (curr_state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab") ) {
+  curr_chrom = readr::read_table2(x, col_names = FALSE)
+  curr_chrom = curr_chrom[,c(1:3)]
+  colnames(curr_chrom) = c("chr", "start", "end")
+  curr_res = list()
+  for (i in unique(Consensus_50kb_Bound$Category)) {
+    
+  curr_res[[index]] = Consensus_50kb_Bound %>% filter(Category==i) %>% group_by(chr) %>%  do(tidy(bootstrapBoundaries(.$chr[1],., curr_chrom, 40000,40000, 10000 ))) %>% mutate(Cutoff = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = curr_state)
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  print(curr_res)
+  }
+  return(curr_res)
+})
+
+trans_Temp = bind_rows(trans_Temp)
+```
+
+```{r}
+#CTCF at boundary
+trans_CTCF_Time =lapply(unique(trans_files), function(x) {
+  form = rm_between(x, "Tfbs", "Gm", extract = TRUE)
+  feature = rm_between(x, "Gm12878", "Uni", extract = TRUE)
+  curr_state = paste0(form, "-", feature)
+  index =  1
+  if (curr_state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab") ) {
+  curr_chrom = readr::read_table2(x, col_names = FALSE)
+  curr_chrom = curr_chrom[,c(1:3)]
+  colnames(curr_chrom) = c("chr", "start", "end")
+  curr_res = list()
+  for (i in unique(Consensus_50kb_Bound$Category)) {
+    
+  curr_res[[index]] = Consensus_50kb_Bound %>% filter( (Category==i)) %>% group_by(chr) %>% do(tidy(CTCFatBoundary(.$chr[1],., curr_chrom, 40000))) %>% mutate(Cutoff = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = curr_state)
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+#  print(curr_res)
+    return(curr_res)
+
+  }
+})
+
+trans_CTCF_Time = bind_rows(trans_CTCF_Time)
+```
+
+```{r}
+
+broad_path = read_table2("C:\\Users\\cresswellkg\\Documents\\TADLearning2\\Markers\\wgEncodeBroadHmmGm12878HMM.bed.gz", col_names = FALSE)
+
+broad_path = broad_path[,1:4] 
+
+colnames(broad_path) = c("chr", "start", "end", "state")
+
+colnames(Consensus_50kb_Bound)[2] = "end"
+
+Broad_Temp_Time =lapply(unique(broad_path$state), function(y) {
+  curr_chrom = broad_path %>% filter(state == y) %>% dplyr::select(chr,start,end)
+  curr_res = list()
+  index =  1
+    curr_res = list()
+  for (i in unique(Consensus_50kb_Bound$Category)) {
+    
+  curr_res[[index]] = Consensus_50kb_Bound %>% filter( (Category==i)) %>% group_by(chr) %>% do(tidy(CTCFatBoundary(.$chr[1],., curr_chrom, 40000))) %>% mutate(Cutoff = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = curr_state)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = y)
+
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  return(curr_res)
+})
+
+Broad_Temp_Time = bind_rows(Broad_Temp_Time)
+```
+
+```{r}
+Over_En = bind_rows(Broad_Temp_Time, trans_CTCF_Time)
+
+Over_En = Over_En %>% filter(state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab"))
+
+Over_En = Over_En %>% mutate(state = ifelse(state == "8_Insulator", "Insulator",
+                                            ifelse (state == "13_Heterochrom/lo", "Heterochrom/lo",
+                                                    ifelse(state == "Sydh-Ctcfsc15914c20", "CTCF", "RAD21"))))
+
+```
+
+```{r}
+
+Over_En = Over_En %>% ungroup() %>% mutate(Cutoff = gsub(" TAD", "", Cutoff)) %>%  mutate(Cutoff = factor(Cutoff, levels = c("Highly Common", "Early Appearing", "Late Appearing", "Early Disappearing", "Late Disappearing", "Dynamic")))
+
+#Over_En = Over_En %>% summarise(x = log10(x))
+```
+
+```{r}
+#Over trans
+
+Trans_HCT =lapply(1:length(file_tabs), function(y) {
+  curr_chrom = file_tabs[[y]] %>% dplyr::select(chr = X1,start = X2,end = X3)
+  curr_res = list()
+  index =  1
+    curr_res = list()
+  for (i in unique(Consensus_50kb_Bound$Category)) {
+    
+  curr_res[[index]] = Consensus_50kb_Bound %>% filter( (Category==i)) %>% group_by(chr) %>% do(tidy(CTCFatBoundary(.$chr[1],., curr_chrom, 40000))) %>% mutate(Cutoff = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = names(file_tabs)[y])
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = names(file_tabs)[y])
+
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  return(curr_res)
+})
+
+Trans_HCT = bind_rows(Trans_HCT)
+```
+
+```{r}
+Enrich_Plot = ggplot(Trans_HCT %>% filter(state == "CTCF"), aes(x = as.factor(Cutoff), y = x, fill = as.factor(Cutoff))) +  theme_light(base_size = 18) + scale_x_discrete() + stat_boxplot(geom ='errorbar', linetype = "dashed", lwd = .8) +
+   geom_boxplot(position = position_dodge2(preserve = "single") , linetype = "dashed", lwd = .8)  + geom_boxplot(outlier.size = 0, coef = 0, lwd = 1.5, position = position_dodge2(preserve = "single"))  + 
+   theme(text = element_text(size=32), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + labs(x = "Cutoff", y = "Peaks at Boundary", fill = "Consensus Boundary Score") + facet_wrap(~state, ncol = 4, nrow = 1, scale = "free") + stat_compare_means(method = "wilcox.test", comparisons = list(c("Late Appearing TAD", "Early Appearing TAD")), size = 8)  +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + 
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 24), legend.title = element_text(size = 24), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 24)) +
+  scale_color_manual(values = rev(cols[c(4, 1:3,5:6)]))
+```
+
+
+```{r}
+Broad_Time = readRDS("./Results/Broad_Time_Boot.rds")
+Trans_Time = readRDS("./Results/Time_trans_Boot.rds") %>% group_by(state) %>% mutate(form = rm_between(state, "Tfbs", "Gm", extract = TRUE)[[1]],
+  feature = rm_between(state, "Gm12878", "Uni", extract = TRUE)[[1]]) %>% ungroup() %>% mutate(state = paste0(form, "-", feature)) %>% dplyr::select(-form, -feature) 
+
+Over_Boot = bind_rows(Broad_Time, Trans_Time) %>% group_by(state) %>% filter(type != "neither") %>% mutate(type = names(sort(table(type), decreasing=TRUE)[1])) %>% group_by(state, type, Cutoff) %>% do(tidy(addCLT(as.numeric(.$perm_p[!is.na(.$perm_p)]))))  %>% mutate(log10_p = log10(as.numeric(x)))
+
+colnames(Over_Boot)[1] = "Feature"
+colnames(Over_Boot)[2] = "Type"
+
+Over_Boot = Over_Boot %>% filter(Feature %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab") ) %>% group_by(Feature) %>% mutate(mean_log = mean(abs(log10_p))) %>% ungroup() %>% mutate(Feature = gsub("Sydh-Ctcfsc15914c20", "CTCF", Feature), Feature = gsub("Sydh-Rad21Iggrab", "RAD21", Feature)) %>% mutate(Feature = gsub(".*_", "", Feature)) %>% mutate(Type = gsub(" TAD", "", Type))
+
+#Over_Boot = Over_Boot %>% arrange(mean_log) %>%  mutate(Type = factor(Type, levels = c("Early Appearing", "Late Appearing", "Highly Common", "Dynamic"))) 
+
+Over_Boot = Over_Boot %>% mutate(Feature = factor(Feature, levels = unique(Feature)))
+
+```
+
+```{r}
+
+#Over_En = Over_En %>% mutate(Cutoff = factor(as.character(Cutoff), levels = c('Highly Common', 'Early Appearing', 'Early Disappearing', 'Late Appearing', 'Late Disappearing', 'Dynamic'))) 
+Over_En = Over_En %>% mutate(state = factor(state, levels = c("CTCF", "Insulator", "RAD21", "Heterochrom/lo")))
+
+Enrich_Plot = ggplot(Over_En, aes(x = as.factor(Cutoff), y = x, fill = as.factor(Cutoff))) +  theme_light(base_size = 18) + scale_x_discrete() + stat_boxplot(geom ='errorbar', linetype = "dashed", lwd = .8) +
+   geom_boxplot(position = position_dodge2(preserve = "single") , linetype = "dashed", lwd = .8)  + geom_boxplot(outlier.size = 0, coef = 0, lwd = 1.5, position = position_dodge2(preserve = "single"))  + 
+   theme(text = element_text(size=24), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + labs(x = "Cutoff", y = "Peaks at Boundary", fill = "Boundary Type") + facet_wrap(~state, ncol = 4, nrow = 1, scale = "free")  + #+ stat_compare_means(method = "wilcox.test", comparisons = list(c("Late Appearing", "Early Appearing"), c("Late Appearing", "Dynamic"), c("Late Appearing", "Highly Common")), size = 8)  +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + 
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 24), legend.title = element_text(size = 24), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 19))  + scale_y_continuous(limits = c(0, 5.5)) +
+  scale_fill_manual(values = rev(cols)[c(4, 1:3,5:6)])
+
+
+#Enrich_Plot = ggRound(Enrich_Plot)
+
+Over_Group = Over_En
+```
+
+```{r}
+
+Over_Boot = Over_Boot  %>% mutate(Cutoff = factor(as.character(Cutoff), levels = c('Highly Common TAD', 'Early Appearing TAD', 'Late Appearing TAD',  'Early Disappearing TAD', 'Late Disappearing TAD', 'Dynamic TAD')))
+
+Over_Boot =Over_Boot %>% mutate(Feature = factor(Feature, levels = rev(c("CTCF", "Insulator", "RAD21", "Heterochrom/lo"))))
+
+Boot_Bar = ggplot(data = Over_Boot,  aes(x = Feature, y = -log10_p, fill = as.factor(Cutoff)))  +  theme_light(base_size = 18) + scale_x_discrete() +
+   geom_bar(stat = "identity",  position = position_dodge(-.9)) +
+   theme(text = element_text(size=24), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + coord_flip() +  labs(x = "Genomic Feature", y = "-Log10 P-value", fill = "Type of Boundary")  + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 24), legend.title = element_text(size = 24), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 19), strip.text.x = element_text(size = 24)) + guides(fill = FALSE)  +
+  scale_fill_manual(values = rev(cols)[c(4, 1:3,5:6)])
+```
+
+
+```{r}
+#Subsetting to pull legend
+Consensus_Leg = Consensus_Sum 
+
+Auxin_Leg = ggplot(Consensus_Leg, aes(x = as.factor(Category), y = Category_Counts, fill = as.factor(Category))) +  theme_light(base_size = 18) + stat_boxplot(geom ='errorbar', linetype = "dashed", lwd = .8) +
+   geom_boxplot(position = position_dodge2(preserve = "single") , linetype = "dashed", lwd = .8)  + geom_boxplot(outlier.size = 0, coef = 0, lwd = 1.5, position = position_dodge2(preserve = "single"))  + 
+   theme(text = element_text(size=32), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + labs(y = "Percentage Type", fill = "Temporal boundary type") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + 
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 24), legend.title = element_text(size = 24), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 24))  +
+  scale_color_manual(values = rev(cols)[c(4, 1:3,5:6)])
+```
+
+```{r}
+Leg_Auxin = get_legend(Enrich_Plot)
+
+ggsave("./manuscript/figures//Boot_Plot_Auxin.tiff", Boot_Bar, dpi=600, height=2.5, width=3.5, units="in", scale=2.8)
+
+ggsave("./manuscript/figures//Enrich_Plot_Auxin.tiff", Enrich_Plot + guides(fill = FALSE), dpi=600, height=2.5, width=3.5, units="in", scale=2.8)
+
+ggsave("./manuscript/figures//Sum_Plot_Auxin.tiff", Auxin_Summary, dpi=600, height=5, width=7, units="in", scale=2.8)
+
+ggsave("./manuscript/figures//Legend_Auxin.tiff", Leg_Auxin, dpi=600, height=2.5, width=5, units="in", scale=4.5)
+```
+
+```{r}
+Over_Comb = Over_En %>% mutate(Group = ifelse(Cutoff %in% c("Highly Common", "Early Appearing", "Late Appearing"), "Real", "Noise"))
+
+compare_means(x~Group, group.by = "state", data = Over_Comb)
+```
+
+```{r}
+Over_Comb = Over_Comb %>% filter(x<6)
+
+Comb_Plot = ggplot(Over_Comb, aes(x = Group, y = x, fill = as.factor(Group))) +  theme_light(base_size = 18) + stat_boxplot(geom ='errorbar', linetype = "dashed", lwd = .8) +
+   geom_boxplot(position = position_dodge2(preserve = "single") , linetype = "dashed", lwd = .8)  + geom_boxplot(outlier.size = 0, coef = 0, lwd = 1.5, position = position_dodge2(preserve = "single"))  + facet_wrap(~state, nrow = 1, scale = "free") +
+   theme(text = element_text(size=32), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + 
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 24), legend.title = element_text(size = 24), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 24))   + scale_x_discrete() + stat_boxplot(geom ='errorbar', linetype = "dashed", lwd = .8) +
+   geom_boxplot(position = position_dodge2(preserve = "single") , linetype = "dashed", lwd = .8)  + geom_boxplot(outlier.size = 0, coef = 0, lwd = 1.5, position = position_dodge2(preserve = "single"))  + 
+   theme(text = element_text(size=32), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + labs(x = "Cutoff", y = "Peaks at Boundary", fill = "Category") + facet_wrap(~state, ncol = 4, nrow = 1, scale = "free") + stat_compare_means(method = "wilcox.test", comparisons = list(c("Noise", "Real")), size = 6)  +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + 
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 24), legend.title = element_text(size = 24), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 24))
+
+source("./Misc_Functions/ggRound.R")
+Comb_Plot = ggRound(Comb_Plot)
+```

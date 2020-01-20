@@ -1,0 +1,94 @@
+---
+title: "Table_Creation"
+author: "Kellen Cresswell"
+date: "May 3, 2019"
+output: pdf_document
+---
+
+```{r}
+require(dplyr)
+require(qdapRegex)
+require(BLMA)
+require(xlsx)
+require(writexl)
+```
+
+```{r}
+Consensus_Broad_P = readRDS("./Results/Broad_Consensus_Boot.rds") %>% mutate(Group = "BroadHmm")
+
+Consensus_Trans_P = readRDS("./Results/Consensus_Trans_Boot.rds") %>% mutate(Group = "TFBS")
+
+Consensus_Trans_P = Consensus_Trans_P %>%  mutate(form = unlist(rm_between(state, "Tfbs", "Gm", extract = TRUE)),
+  feature = unlist(rm_between(state, "Gm12878", "Uni", extract = TRUE)),
+  state = paste0(form, "-", feature)) %>% dplyr::select(-form, -feature)
+
+Consensus_Hist_P = readRDS("./Results/Consensus_Hist_Boot.rds") %>% mutate(Group = "Histones") %>% mutate(state = unlist(rm_between(state, "Gm12878", "StdPk", extract = TRUE)))
+
+Consensus_Frame = rbind.data.frame(Consensus_Broad_P, Consensus_Trans_P, Consensus_Hist_P)
+
+```
+
+```{r}
+#Getting P-values for each state on a chr-by-chr-basis
+
+Consensus_Frame = Consensus_Frame  %>% ungroup() %>% filter(!is.na(as.numeric(perm_p))) %>% filter(perm_p != 0)
+
+Consensus_Frame = Consensus_Frame  %>% group_by(state) %>% mutate(type =  names(sort(table(as.character(type)),decreasing=TRUE))[1])
+
+
+Cons_p_complete = Consensus_Frame %>% group_by(state,Cutoff, Group, type) %>%  do(tidy(addCLT(as.numeric(.$perm_p))))
+
+colnames(Cons_p_complete) = c("Feature", "Consensus Range", "Group", "Enriched/Depleted", "P-value")
+
+Cons_p_complete = Cons_p_complete %>% ungroup() %>%  mutate(`Consensus Range` = ifelse(`Consensus Range` == 2, "<2",                                                   ifelse(`Consensus Range` ==4, "2-4", ">4"))) %>% mutate(`P-value` = formatC(`P-value`, format = "e", digits = 2)) 
+
+#Create .xlsx workbook
+
+Cons_p_complete = Cons_p_complete %>% mutate(`Consensus Range` = factor(`Consensus Range`, levels = c("<2", "2-4", ">4")))
+
+sheets = list("BroadHMM" = Cons_p_complete %>% filter(Group == "BroadHmm") %>% mutate(Feature = gsub("^[^_]*_","", Feature) )%>% arrange(desc(`Consensus Range`), desc(`Enriched/Depleted`), as.numeric(`P-value`)) %>% dplyr::select(-Group) , "TFBS" = Cons_p_complete %>% filter(Group == "TFBS")%>% arrange(desc(`Consensus Range`), desc(`Enriched/Depleted`), as.numeric(`P-value`)) %>% dplyr::select(-Group), "Histones" = Cons_p_complete %>% filter(Group == "Histones")  %>% arrange(desc(`Consensus Range`), desc(`Enriched/Depleted`), as.numeric(`P-value`)) %>% dplyr::select(-Group))
+
+write_xlsx(sheets, "./manuscript/tables/Supplementary_Table_4.xlsx")
+```
+
+
+```{r}
+Time_Broad_P = readRDS("./Results/Broad_Time_Boot.rds") %>% mutate(Group = "BroadHmm")
+
+Time_Trans_P = readRDS("./Results/Time_trans_boot.rds") %>% mutate(Group = "TFBS")
+
+Time_Trans_P = Time_Trans_P %>%  mutate(form = unlist(rm_between(state, "Tfbs", "Gm", extract = TRUE)),
+  feature = unlist(rm_between(state, "Gm12878", "Uni", extract = TRUE)),
+  state = paste0(form, "-", feature)) %>% dplyr::select(-form, -feature)
+
+Time_Hist_P = readRDS("./Results/Time_hist_Boot.rds") %>% mutate(Group = "Histones") %>% mutate(state = unlist(rm_between(state, "Gm12878", "StdPk", extract = TRUE)))
+
+Time_Frame = bind_rows(Time_Broad_P, Time_Trans_P, Time_Hist_P)
+
+```
+
+```{r}
+#Getting P-values for each state on a chr-by-chr-basis
+
+Time_Frame = Time_Frame %>% filter(!is.na(perm_p)) %>% filter(perm_p != 0)
+
+Time_Frame = Time_Frame %>% group_by(state) %>% mutate(type =  names(sort(table(as.character(type)),decreasing=TRUE))[1])
+
+
+Time_p_complete = Time_Frame  %>% group_by(state,Cutoff, Group, type) %>%  do(tidy(addCLT(as.numeric(.$perm_p))))
+
+colnames(Time_p_complete) = c("Feature", "Type", "Group", "Enriched/Depleted", "P-value")
+
+Time_p_complete = Time_p_complete  %>% ungroup() %>%  mutate(`P-value` = formatC(`P-value`, format = "e", digits = 2)) %>% arrange(desc(Type), desc(`Enriched/Depleted`), as.numeric(`P-value`)) %>% mutate(Type =  factor(Type, levels = c("Highly Common TAD", "Early Appearing TAD", "Late Appearing TAD", "Early Disappearing TAD", "Late Disappearing TAD", "Dynamisc TAD"))) %>% arrange(Type)
+
+#Create .xlsx workbook
+
+sheets = list("BroadHMM" = Time_p_complete %>% filter(Group == "BroadHmm") %>% mutate(Feature = gsub("^[^_]*_","", Feature)) %>% arrange(Type, desc(`Enriched/Depleted`), as.numeric(`P-value`))  %>% dplyr::select(-Group), "TFBS" = Time_p_complete %>% filter(Group == "TFBS") %>% arrange(Type, desc(`Enriched/Depleted`), as.numeric(`P-value`)) %>% dplyr::select(-Group), "Histones" = Time_p_complete %>% filter(Group == "Histones") %>% arrange(Type, desc(`Enriched/Depleted`), as.numeric(`P-value`)) %>% dplyr::select(-Group))
+
+
+write_xlsx(sheets, "./manuscript/tables/Supplementary_Table_5.xlsx")
+```
+
+```{r}
+
+```

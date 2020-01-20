@@ -1,0 +1,414 @@
+---
+title: "Figure 9/Supplementary Figure 5"
+author: "Kellen Cresswell"
+date: "April 30, 2019"
+output: pdf_document
+---
+
+```{r}
+source("./Misc_Functions/bootstrapBoundaries.R")
+source("./Misc_Functions/CTCFatBoundary.R")
+require(ggpubr)
+require(dplyr)
+require(broom)
+require(tidyr)
+require(readr)
+```
+
+```{r setup, include=FALSE}
+Cell_TADs = readRDS("./Results/All_TADs_Cells.rds")
+Cons_TADs = readRDS("./Results/Consensus_Cells.rds") %>% filter(Consensus_Score>3) %>% dplyr::select(chr = chr, end = Coordinate) %>% distinct()
+
+All_TADs = readRDS("./Results/Consensus_Cells.rds") 
+
+Cell_TADs = Cell_TADs %>% 
+  mutate(key = paste0(pmin(as.character(file1), as.character(file2)), pmax(as.character(file1), as.character(file2)), sep = ""), ind_key = paste0(abs(Gap_Score), key)) %>% distinct(ind_key, .keep_all = TRUE)
+
+Diff_Bound =ggplot(Cell_TADs, aes(x =unlist(Gap_Score))) + stat_density(size = 4, geom = "line") + guides(group = FALSE) +  theme_light(base_size = 32) + guides(group = FALSE)  +
+   theme(axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + labs(x = "Differential boundary score", y = "Density") + guides(color = guide_legend(override.aes = list(size = 8))) + theme(legend.position = c(.75,.9), legend.text = element_text(size = 36), legend.title = element_text(size = 36)) 
+
+Diff_Bound_QQ = ggplot(Cell_TADs, aes(sample = unlist(Gap_Score))) + geom_qq() + guides(group = FALSE) +  theme_light(base_size = 32) + guides(group = FALSE)  +
+   theme(axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + labs(x = "Differential boundary score", y = "Density") + guides(color = guide_legend(override.aes = list(size = 8))) + theme(legend.position = c(.75,.9), legend.text = element_text(size = 36), legend.title = element_text(size = 36)) 
+
+
+Cons_Plot =ggplot(All_TADs, aes(x =unlist(Consensus_Score))) + stat_density(size = 4, geom = "line") + guides(group = FALSE) +  theme_light(base_size = 32) + guides(group = FALSE)  +
+   theme(axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + labs(x = "Differential boundary score", y = "Density") + guides(color = guide_legend(override.aes = list(size = 8))) + theme(legend.position = c(.75,.9), legend.text = element_text(size = 36), legend.title = element_text(size = 36)) 
+
+Samp_1 = All_TADs %>% dplyr::select(chr = chr, end = Coordinate, Samp = `Sample 1`) %>% filter(Samp>3) %>% dplyr::select(chr, end)
+
+Single_Samps = bind_rows(Samp_1) %>% mutate(Group = "One Replicate")
+
+Samp_1_2 = All_TADs %>% dplyr::select(chr = chr, end = Coordinate, Samp1 = `Sample 1`, Samp2 = `Sample 2`) %>% filter( (Samp1>3) | (Samp2>3))  %>% dplyr::select(chr, end)
+
+Samp_1_3 = All_TADs %>% dplyr::select(chr = chr, end = Coordinate, Samp1 = `Sample 1`, Samp2 = `Sample 3`) %>% filter( (Samp1>3) | (Samp2>3))  %>% dplyr::select(chr, end)
+
+Double_Samps = bind_rows(Samp_1_2, Samp_1_3) %>% mutate(Group = "Two Replicates")
+
+
+
+```
+
+```{r}
+Cell_TADs = Cell_TADs %>% mutate(file1 = gsub("\\.40Kb.*", "",file1), file2 = gsub("\\.40Kb.*", "",file2))
+
+Cell_TADs_Rep = Cell_TADs %>% filter(gsub('[0-9]+', '', file1) == gsub('[0-9]+', '', file2))
+#Get mappings
+
+lab_conv = read_csv("sample_descriptions.csv", col_names = FALSE)[,c(1:4 )]
+colnames(lab_conv) = c("Full", "Abb", "Line", "Category")
+
+Cell_TADs =left_join(Cell_TADs, lab_conv, c("file1" = "Abb"))
+Cell_TADs = left_join(Cell_TADs, lab_conv, c("file2" = "Abb"))
+
+Cell_TADs = Cell_TADs %>% mutate(file1 = gsub('[[:digit:]]+', '', file1),
+                                 file2 = gsub('[[:digit:]]+', '', file2))
+
+Reps = Cell_TADs %>% filter(file1 == file2) %>% filter( (TAD_Score1>3) | TAD_Score2>3) %>% dplyr::select(chr,end = Boundary) %>% distinct()
+
+
+```
+
+```{r}
+Reps = All_TADs %>% filter(`Sample 1` > 3 | `Sample 2` > 3 | `Sample 3` >3) %>% dplyr::select(chr = chr, end = Coordinate)
+
+Cons_TADs = Cons_TADs %>% mutate(Source = "Consensus")
+Reps = Reps %>% mutate(Source = "Union")
+
+Combined = bind_rows(Cons_TADs, Reps)
+
+Rep_Nums = bind_rows(Single_Samps, Double_Samps, Reps %>% dplyr::select(chr, end, Group = Source) %>% mutate(Group = "Three Replicates")) %>% distinct()
+
+```
+
+```{r}
+require(qdapRegex)
+trans_path = "C:\\Users\\cresswellkg\\Documents\\TADLearning2\\Markers\\Transcription\\"
+
+trans_files =paste0(trans_path, list.files(trans_path))
+
+#CTCF at boundary
+trans_CTCF =lapply(unique(trans_files), function(x) {
+  form = rm_between(x, "Tfbs", "Gm", extract = TRUE)
+  feature = rm_between(x, "Gm12878", "Uni", extract = TRUE)
+  curr_state = paste0(form, "-", feature)
+  index =  1
+  curr_res = list()
+  if (curr_state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab") ) {
+  curr_chrom = readr::read_table2(x, col_names = FALSE)
+  curr_chrom = curr_chrom[,c(1:3)]
+  colnames(curr_chrom) = c("chr", "start", "end")
+  for (i in unique(Combined$Source)) {
+    
+  curr_res[[index]] = Combined %>% filter( (Source==i)) %>% group_by(chr) %>% do(tidy(CTCFatBoundary(.$chr[1],., curr_chrom, 40000))) %>% mutate(Source = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = curr_state)
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  }
+  return(curr_res)
+})
+
+trans_CTCF = bind_rows(trans_CTCF)
+
+#CTCF at boundary
+trans_CTCF_Rep =lapply(unique(trans_files), function(x) {
+  form = rm_between(x, "Tfbs", "Gm", extract = TRUE)
+  feature = rm_between(x, "Gm12878", "Uni", extract = TRUE)
+  curr_state = paste0(form, "-", feature)
+  index =  1
+  curr_res = list()
+  if (curr_state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab") ) {
+  curr_chrom = readr::read_table2(x, col_names = FALSE)
+  curr_chrom = curr_chrom[,c(1:3)]
+  colnames(curr_chrom) = c("chr", "start", "end")
+  for (i in unique(Rep_Nums$Group)) {
+    
+  curr_res[[index]] = Rep_Nums %>% filter( (Group==i)) %>% group_by(chr) %>% do(tidy(CTCFatBoundary(.$chr[1],., curr_chrom, 40000))) %>% mutate(Group = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = curr_state)
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  }
+  return(curr_res)
+})
+
+trans_CTCF_Rep = bind_rows(trans_CTCF_Rep)
+```
+
+```{r}
+broad_path = read_table2("C:\\Users\\cresswellkg\\Documents\\TADLearning2\\Markers\\wgEncodeBroadHmmGm12878HMM.bed.gz", col_names = FALSE)
+
+broad_path = broad_path[,1:4] 
+
+colnames(broad_path) = c("chr", "start", "end", "state")
+
+Broad_Temp =lapply(unique(broad_path$state), function(y) {
+  curr_chrom = broad_path %>% filter(state == y) %>% dplyr::select(chr,start,end)
+  curr_res = list()
+  index =  1
+    curr_res = list()
+  for (i in unique(Combined$Source)) {
+    
+  curr_res[[index]] = Combined %>% filter( (Source==i)) %>% group_by(chr) %>% do(tidy(CTCFatBoundary(.$chr[1],., curr_chrom, 40000))) %>% mutate(Source = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = y)
+
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  return(curr_res)
+})
+
+Broad_Temp = bind_rows(Broad_Temp)
+
+#Different Replicate numbers
+
+Broad_Temp_Rep =lapply(unique(broad_path$state), function(y) {
+  curr_chrom = broad_path %>% filter(state == y) %>% dplyr::select(chr,start,end)
+  curr_res = list()
+  index =  1
+    curr_res = list()
+  for (i in unique(Rep_Nums$Group)) {
+    
+  curr_res[[index]] = Rep_Nums %>% filter( (Group==i)) %>% group_by(chr) %>% do(tidy(CTCFatBoundary(.$chr[1],., curr_chrom, 40000))) %>% mutate(Group = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = y)
+
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  return(curr_res)
+})
+
+Broad_Temp_Rep = bind_rows(Broad_Temp_Rep)
+```
+
+```{R}
+Cons_Un = bind_rows(Broad_Temp, trans_CTCF)
+
+Cons_Un = Cons_Un %>% filter(state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab"))
+
+Cons_Un = Cons_Un %>% mutate(state = ifelse(state == "8_Insulator", "Insulator",
+                                            ifelse (state == "13_Heterochrom/lo", "Heterochrom/lo",
+                                                    ifelse(state == "Sydh-Ctcfsc15914c20", "CTCF", "RAD21"))))
+```
+
+```{R}
+Cons_Un_Rep = bind_rows(Broad_Temp_Rep, trans_CTCF_Rep)
+
+Cons_Un_Rep = Cons_Un_Rep %>% filter(state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab"))
+
+Cons_Un_Rep = Cons_Un_Rep %>% mutate(state = ifelse(state == "8_Insulator", "Insulator",
+                                            ifelse (state == "13_Heterochrom/lo", "Heterochrom/lo",
+                                                    ifelse(state == "Sydh-Ctcfsc15914c20", "CTCF", "RAD21"))))
+```
+
+```{r}
+colnames(Cons_Un)[3] = "Source"
+
+```
+
+```{R}
+trans_CTCF_Boot =lapply(unique(trans_files), function(x) {
+  form = rm_between(x, "Tfbs", "Gm", extract = TRUE)
+  feature = rm_between(x, "Gm12878", "Uni", extract = TRUE)
+  curr_state = paste0(form, "-", feature)
+  index =  1
+  curr_res = list()
+  if (curr_state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab") ) {
+  curr_chrom = readr::read_table2(x, col_names = FALSE)
+  curr_chrom = curr_chrom[,c(1:3)]
+  colnames(curr_chrom) = c("chr", "start", "end")
+  for (i in unique(Combined$Source)) {
+    
+  curr_res[[index]] = Combined %>% filter( (Source==i))  %>% group_by(chr) %>% do(tidy(bootstrapBoundaries(.$chr[1],., curr_chrom, 40000,40000, 10000 ))) %>% mutate(Source = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = curr_state)
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  }
+  return(curr_res)
+})
+
+trans_CTCF_Boot = bind_rows(trans_CTCF_Boot)
+```
+
+```{r}
+Broad_Temp_Boot =lapply(unique(broad_path$state), function(y) {
+  curr_chrom = broad_path %>% filter(state == y) %>% dplyr::select(chr,start,end)
+  curr_res = list()
+  index =  1
+    curr_res = list()
+  for (i in unique(Combined$Source)) {
+    
+  curr_res[[index]] = Combined %>% filter( (Source==i)) %>% group_by(chr) %>% do(tidy(bootstrapBoundaries(.$chr[1],., curr_chrom, 40000,40000, 10000 )))  %>% mutate(Source = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = y)
+
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  return(curr_res)
+})
+
+Broad_Temp_Boot_Rep = bind_rows(Broad_Temp_Boot_Rep)
+```
+
+```{R}
+trans_CTCF_Boot_Rep =lapply(unique(trans_files), function(x) {
+  form = rm_between(x, "Tfbs", "Gm", extract = TRUE)
+  feature = rm_between(x, "Gm12878", "Uni", extract = TRUE)
+  curr_state = paste0(form, "-", feature)
+  index =  1
+  curr_res = list()
+  if (curr_state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab") ) {
+  curr_chrom = readr::read_table2(x, col_names = FALSE)
+  curr_chrom = curr_chrom[,c(1:3)]
+  colnames(curr_chrom) = c("chr", "start", "end")
+  for (i in unique(Rep_Nums$Group)) {
+    
+  curr_res[[index]] = Rep_Nums %>% filter( (Group==i))  %>% group_by(chr) %>% do(tidy(bootstrapBoundaries(.$chr[1],., curr_chrom, 40000,40000, 10000 ))) %>% mutate(Group = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = curr_state)
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  }
+  return(curr_res)
+})
+
+trans_CTCF_Boot_Rep = bind_rows(trans_CTCF_Boot_Rep)
+```
+
+```{r}
+Broad_Temp_Boot_Rep =lapply(unique(broad_path$state), function(y) {
+  curr_chrom = broad_path %>% filter(state == y) %>% dplyr::select(chr,start,end)
+  curr_res = list()
+  index =  1
+    curr_res = list()
+  for (i in unique(Rep_Nums$Group)) {
+    
+  curr_res[[index]] = Rep_Nums %>% filter( (Group==i)) %>% group_by(chr) %>% do(tidy(bootstrapBoundaries(.$chr[1],., curr_chrom, 40000,40000, 10000 )))  %>% mutate(Group = i)
+  curr_res[[index]] = curr_res[[index]] %>% mutate(state = y)
+
+  index = index+1
+  }
+  curr_res = bind_rows(curr_res)
+  return(curr_res)
+})
+
+Broad_Temp_Boot = bind_rows(Broad_Temp_Boot)
+```
+
+```{r}
+Cons_Un_Boot = bind_rows(Broad_Temp_Boot, trans_CTCF_Boot)
+
+Cons_Un_Boot = Cons_Un_Boot %>% filter(state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab"))
+
+Cons_Un_Boot = Cons_Un_Boot %>% mutate(state = ifelse(state == "8_Insulator", "Insulator",
+                                            ifelse (state == "13_Heterochrom/lo", "Heterochrom/lo",
+                                                    ifelse(state == "Sydh-Ctcfsc15914c20", "CTCF", "RAD21")))) %>% mutate(state = gsub(".*_", "", state)) 
+
+Cons_Un_Boot = bind_rows(Cons_Un_Boot)  %>% group_by(Source,state) %>% do(tidy(addCLT(as.numeric(.$perm_p[!is.na(.$perm_p)])))) 
+```
+
+```{r}
+Cons_Un_Boot_Rep = bind_rows(Broad_Temp_Boot_Rep, trans_CTCF_Boot_Rep)
+
+Cons_Un_Boot_Rep = Cons_Un_Boot_Rep %>% filter(state %in% c("8_Insulator", "13_Heterochrom/lo", "Sydh-Ctcfsc15914c20", "Sydh-Rad21Iggrab"))
+
+Cons_Un_Boot_Rep = Cons_Un_Boot_Rep %>% mutate(state = ifelse(state == "8_Insulator", "Insulator",
+                                            ifelse (state == "13_Heterochrom/lo", "Heterochrom/lo",
+                                                    ifelse(state == "Sydh-Ctcfsc15914c20", "CTCF", "RAD21")))) %>% mutate(state = gsub(".*_", "", state)) 
+
+Cons_Un_Boot_Rep = bind_rows(Cons_Un_Boot_Rep)  %>% group_by(Group,state) %>% do(tidy(addCLT(as.numeric(.$perm_p[!is.na(.$perm_p)])))) 
+```
+
+```{r}
+Cons_Un_Boot =Cons_Un_Boot %>% mutate(log10_p = -log10(x)) %>% mutate(mean_log = mean(log10_p)) %>% arrange(-mean_log) %>% ungroup() %>% mutate(state = factor(state, levels = rev(unique(state))))
+
+Full_Boot = ggplot(data = Cons_Un_Boot,  aes(x = state, y = log10_p, fill = as.factor(Source)))   +  theme_light(base_size = 24) + scale_x_discrete() +
+   geom_bar(stat = "identity",  position = position_dodge(-.9)) +
+   theme(text = element_text(size=24), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + coord_flip() +  labs(x = "Genomic Feature", y = "-Log10 P-value", fill = "Type of Boundary")  + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 24), legend.title = element_text(size = 24), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 24)) + guides(fill = FALSE)
+```
+
+```{r}
+Cons_Un_Boot_Rep =Cons_Un_Boot_Rep %>% mutate(log10_p = -log10(x)) %>% mutate(mean_log = mean(log10_p)) %>% arrange(-mean_log) %>% ungroup() %>% mutate(state = factor(state, levels = rev(unique(state))))
+
+Full_Boot_Rep = ggplot(data = Cons_Un_Boot_Rep,  aes(x = state, y = log10_p, fill = as.factor(Group)))   +  theme_light(base_size = 24) + scale_x_discrete() +
+   geom_bar(stat = "identity",  position = position_dodge(-.9)) +
+   theme(text = element_text(size=24), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + coord_flip() +  labs(x = "Genomic Feature", y = "-Log10 P-value", fill = "Type of Boundary")  + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 24), legend.title = element_text(size = 24), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 24)) 
+```
+
+```{r}
+Cons_Un = Cons_Un %>% mutate(state = factor(state, levels = unique(Cons_Un_Boot$state)))
+
+Enrich_Plot = ggplot(Cons_Un, aes(x = as.factor(Source), y = x, fill = as.factor(Source))) +  theme_light(base_size = 18)+ stat_boxplot(geom ='errorbar', linetype = "dashed", lwd = .8) +
+   geom_boxplot(position = position_dodge2(preserve = "single") , linetype = "dashed", lwd = .8)  + geom_boxplot(outlier.size = 0, coef = 0, lwd = 1.5, position = position_dodge2(preserve = "single"))  + 
+   theme(text = element_text(size=32), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + labs(x = "Source", y = "Peaks at Boundary", fill = "Boundary Type") + facet_wrap(~state, ncol = 4, nrow = 1, scale = "free")  + stat_compare_means(method = "wilcox.test", comparisons = list(c("Consensus", "Union")), size = 8)  +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + 
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 24), legend.title = element_text(size = 24), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 19))  + guides(fill =FALSE)
+
+Enrich_Plot = ggRound(Enrich_Plot)
+```
+
+```{r}
+Cons_Un = Cons_Un %>% mutate(state = factor(state, levels = unique(Cons_Un_Boot$state)))
+
+Cons_Un_Rep = Cons_Un_Rep %>% mutate(Group = factor(Group, levels = c("One Replicate", "Two Replicates", "Three Replicates")))
+
+Enrich_Plot_Rep = ggplot(Cons_Un_Rep, aes(x = as.factor(Group), y = x, fill = as.factor(Group))) +  theme_light(base_size = 18)+ stat_boxplot(geom ='errorbar', linetype = "dashed", lwd = .8) +
+   geom_boxplot(position = position_dodge2(preserve = "single") , linetype = "dashed", lwd = .8)  + geom_boxplot(outlier.size = 0, coef = 0, lwd = 1.5, position = position_dodge2(preserve = "single"))  + 
+   theme(text = element_text(size=32), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + labs(x = "Source", y = "Peaks at Boundary", fill = "Num. of Replicates") + facet_wrap(~state, ncol = 4, nrow = 1, scale = "free")  + stat_compare_means(method = "wilcox.test", comparisons = list(c("One Replicate", "Three Replicates"), c("One Replicate", "Two Replicates")), size = 8)  +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + 
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 24), legend.title = element_text(size = 24), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 19))  
+
+Enrich_Plot_Rep = ggRound(Enrich_Plot_Rep)
+```
+
+```{r}
+En_Leg = get_legend(Full_Boot)
+En_Leg_Rep = get_legend(Enrich_Plot_Rep)
+
+ggsave("./manuscript/figures//Meth_Plot.tiff", Enrich_Plot, dpi=600, height=2.5, width=3.5, units="in", scale=2.8)
+
+ggsave("./manuscript/figures//Meth_Plot_Boot.tiff", Full_Boot + guides(fill = FALSE), dpi=600, height=2.5, width=3.5, units="in", scale=2.8)
+
+ggsave("./manuscript/figures//Meth_Leg.tiff", En_Leg, dpi=600, height=2.5, width=3.5, units="in", scale=2.8)
+
+ggsave("./manuscript/figures//Meth_Plot_Rep.tiff", Enrich_Plot_Rep, dpi=600, height=2.5, width=3.5, units="in", scale=2.8)
+
+ggsave("./manuscript/figures//Meth_Plot_Boot_Rep.tiff", Full_Boot_Rep + guides(fill = FALSE), dpi=600, height=2.5, width=3.5, units="in", scale=2.8)
+
+ggsave("./manuscript/figures//Meth_Leg_Rep.tiff", En_Leg_Rep, dpi=600, height=2.5, width=3.5, units="in", scale=3.8)
+
+ggsave("./manuscript/figures//Diff_Bound_Plot.tiff", Diff_Bound, dpi=600, height=5, width=7, units="in", scale=2.8)
+```
+
+
+```

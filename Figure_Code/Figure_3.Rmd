@@ -1,0 +1,116 @@
+---
+title: "Figure_10"
+author: "Kellen Cresswell"
+date: "April 18, 2019"
+output: pdf_document
+---
+
+```{r}
+require(dplyr)
+require(ggpubr)
+require(readr)
+source("./Misc_Functions/ggRound.R")
+```
+
+```{r}
+Cell_Res = bind_rows(readRDS("Results/All_TADs_Cells.rds"))
+Tis_Res = bind_rows(readRDS("Results/All_TADs_Tiss.rds"))
+
+Cell_Res = Cell_Res %>% mutate(Source = "Cell Line")
+Tis_Res = Tis_Res %>% mutate(Source = "Tissue")
+
+Comb_Res = bind_rows(Cell_Res, Tis_Res)
+
+head(Comb_Res)
+
+```
+
+```{r}
+
+Comb_Res = Comb_Res %>% mutate(file1 = gsub("\\.40Kb.*", "",file1), file2 = gsub("\\.40Kb.*", "",file2))
+
+Comb_Res_Rep = Comb_Res %>% filter(gsub('[0-9]+', '', file1) == gsub('[0-9]+', '', file2))
+
+
+#Get mappings
+
+lab_conv = read_csv("sample_descriptions.csv", col_names = FALSE)[,c(1:4 )]
+colnames(lab_conv) = c("Full", "Abb", "Line", "Category")
+
+Comb_Res =left_join(Comb_Res, lab_conv, c("file1" = "Abb"))
+Comb_Res = left_join(Comb_Res, lab_conv, c("file2" = "Abb"))
+```
+
+```{r}
+Comb_Temp = Comb_Res %>% mutate(Type = gsub("^Merge$", "Merge-Split", Type),
+                              Type = gsub("^Split$", "Merge-Split", Type))
+
+Comb_Res  = Comb_Res %>% mutate(Type = gsub("Merge", "Differential", Type),
+                              Type = gsub("Split", "Differential", Type))
+#Summary of changes
+
+
+rep_temp = Comb_Temp %>% filter(!is.na(Type)) %>% mutate(Cell1 = Full.x, Cell2 = Full.y, Comparison = paste0(Cell1, "-", Cell2)) %>% group_by(Comparison) %>% mutate(Count =n()) %>% group_by(Comparison, Source, Type, Cell1, Cell2) %>% summarise(Per_Diff = n()/Count[1], Per_Diff = round(Per_Diff*100, 2)) %>% ungroup() %>% mutate(ind = paste0(pmin(Cell1, Cell2), pmax(Cell1, Cell2))) %>% group_by(ind, Type) %>% filter(!duplicated(paste0(ind, Type))) %>% ungroup() %>% dplyr::select(-Cell1, -Cell2, -ind)
+
+rep_sum = rep_temp %>% group_by(Source, Type) %>% summarise(mean(Per_Diff))
+
+rep_sum = rep_sum %>% rename(`Percent Difference`= Per_Diff)
+
+rep_temp = rep_temp %>% rename(`Percent Difference`= Per_Diff)
+
+rep_temp = rep_temp %>% mutate(Type = gsub("^Differential$", "Complex", Type))
+
+rep_temp = rep_temp %>% mutate(Type = factor(Type, c('Non-Differential', 'Complex', 'Merge-Split', 'Shifted', 'Strength Change')))
+
+sheets = list("Cell" = rep_temp %>% filter(Source == "Cell Line") %>% dplyr::select(-Source) %>% arrange(Comparison, Type) , "Tissue" = rep_temp %>% filter(Source == "Tissue") %>% dplyr::select(-Source) %>% arrange(Comparison, Type) )
+
+write_xlsx(sheets, "./manuscript/tables/Supplementary_Table_3.xlsx")
+
+rep_over_sum = rep_temp %>% group_by(Source) %>% summarise(Mean_Diff = mean(Per_Diff), SD_Diff = sd(Per_Diff))
+
+#Overall summary
+
+over_sum = Comb_Res %>%  filter(!is.na(Type)) %>% group_by(Source) %>% mutate(Count =n()) %>% group_by(Source, Type) %>% summarise(Per_Diff = n()/Count[1])
+
+rep_sum = rep_temp %>% mutate(Type = ifelse(Type == "Differential", "Complex", Type)) %>% filter(Type != "Non-Differential")
+
+rep_sum = rep_sum %>% mutate(Type = factor(Type, levels = c("Complex", "Strength Change", "Merge-Split", "Shifted")))
+
+#rep_Temp = rep_temp %>% mutate(Type = factor(Type, levels = c("Differential", "Strength Change", "Merge-Split", "Shifted")))
+```
+
+```{r}
+Diff_Plot = ggplot(rep_sum, aes(x = as.factor(Source), y = Per_Diff*.01, fill = as.factor(Source))) +  theme_light(base_size = 24) + scale_x_discrete() + stat_boxplot(geom ='errorbar', linetype = "dashed", lwd = .8) +
+   geom_boxplot(position = position_dodge2(preserve = "single") , linetype = "dashed", lwd = .8)  + geom_boxplot(outlier.size = 0, coef = 0, lwd = 1.5, position = position_dodge2(preserve = "single"))  + 
+   theme(text = element_text(size=24), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + labs(x = "Type of Source", y = "Proportion of Boundaries", fill = "Type of Source") + facet_wrap(.~Type, nrow = 1) + stat_compare_means(method = "wilcox.test", comparisons = list(c("Cell Line", "Tissue")), size = 6)  +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + 
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 20), legend.title = element_text(size = 20), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 18)) + scale_fill_manual(values = c("orange", "purple"))
+
+Diff_Plot = ggRound(Diff_Plot)
+
+Diff_Plot_Temp = ggplot(rep_Temp %>% filter(!is.na(Type)), aes(x = as.factor(Source), y = Per_Diff*.01, fill = as.factor(Source))) +  theme_light(base_size = 24) + scale_x_discrete() + stat_boxplot(geom ='errorbar', linetype = "dashed", lwd = .8) +
+   geom_boxplot(position = position_dodge2(preserve = "single") , linetype = "dashed", lwd = .8)  + geom_boxplot(outlier.size = 0, coef = 0, lwd = 1.5, position = position_dodge2(preserve = "single"))  + 
+   theme(text = element_text(size=24), axis.line = element_line(colour = "black"), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + labs(x = "Type of Source", y = "Proportion of Boundaries", fill = "Type of Source") + facet_wrap(.~Type, nrow = 1) + stat_compare_means(method = "wilcox.test", comparisons = list(c("Cell Line", "Tissue")), size = 6)  +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + 
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 20), legend.title = element_text(size = 20), legend.position='bottom', strip.background =element_rect(fill="grey84"), strip.text = element_text(colour = 'black', size = 20), strip.text.x = element_text(size = 18)) 
+```
+
+```{r}
+ggsave("./manuscript/figures//Source_Plot.tiff", Diff_Plot, dpi=600, height=2.5, width=3.5, units="in", scale=2.8)
+
+ggsave("./manuscript/figures//Source_Plot_Full.tiff", Diff_Plot_Temp, dpi=600, height=2.5, width=3.5, units="in", scale=2.8)
+```

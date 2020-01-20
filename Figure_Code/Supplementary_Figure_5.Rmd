@@ -1,0 +1,56 @@
+---
+title: "Figure_15"
+author: "Kellen Cresswell"
+date: "May 4, 2019"
+output: pdf_document
+---
+
+```{r}
+source("./Misc_Functions/bootstrapBoundaries.R")
+require(dplyr)
+require(VennDiagram)
+```
+
+```{r setup, include=FALSE}
+Cell_TADs = readRDS("./Results/All_TADs_Cells.rds")
+Cons_TADs = readRDS("./Results/Consensus_Cells.rds") %>% filter(Consensus_Score>3) %>% dplyr::select(chr = chr, end = Coordinate) %>% distinct()
+```
+
+```{r}
+Cell_TADs = Cell_TADs %>% mutate(file1 = gsub("\\.40Kb.*", "",file1), file2 = gsub("\\.40Kb.*", "",file2))
+
+Cell_TADs_Rep = Cell_TADs %>% filter(gsub('[0-9]+', '', file1) == gsub('[0-9]+', '', file2))
+#Get mappings
+
+lab_conv = read_csv("sample_descriptions.csv", col_names = FALSE)[,c(1:4 )]
+colnames(lab_conv) = c("Full", "Abb", "Line", "Category")
+
+Cell_TADs =left_join(Cell_TADs, lab_conv, c("file1" = "Abb"))
+Cell_TADs = left_join(Cell_TADs, lab_conv, c("file2" = "Abb"))
+
+Cell_TADs = Cell_TADs %>% mutate(file1 = gsub('[[:digit:]]+', '', file1),
+                                 file2 = gsub('[[:digit:]]+', '', file2))
+
+Reps = Cell_TADs %>% filter(file1 == file2) %>% filter( (TAD_Score1>3) | TAD_Score2>3) %>% dplyr::select(chr,end = Boundary) %>% distinct()
+
+
+```
+
+```{r}
+Cons_TADs = Cons_TADs %>% mutate(Source = "Consensus")
+Reps = Reps %>% mutate(Source = "Union")
+
+Combined = bind_rows(Cons_TADs, Reps)
+
+```
+
+```{r}
+Combined = Combined %>% mutate(Comb_Loc = paste0(end, chr))
+
+toV.a <- (Combined %>% filter(Source == "Consensus"))$Comb_Loc
+toV.b <- (subset(Combined, Source == "Union"))$Comb_Loc
+```
+
+```{r}
+abcVenn <- venn.diagram(x = list(Consensus=toV.a, Union=toV.b), filename = "./manuscript/figures/Consensus_Venn.png", height = 5, width = 7, resolution = 600, fill = c("red", "blue"), alpha = .5, cat.fontface = 4, lty = 2, imagetype = "tiff", units = "in")
+```

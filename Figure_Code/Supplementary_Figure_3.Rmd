@@ -1,0 +1,124 @@
+---
+title: "Supplementary_Figure_3"
+author: "Kellen Cresswell"
+date: "June 6, 2019"
+output: pdf_document
+---
+
+```{r}
+require(readr)
+require(dplyr)
+source("TADCompare.R")
+source("./Misc_Functions/coordCols.R")
+```
+
+```{r}
+mat1 = read_tsv("npc_rep1.40kb.raw.chr22.mat", col_names = FALSE)
+mat2 = read_tsv("npc_rep2.40kb.raw.chr22.mat", col_names = FALSE)
+
+mat1 = coordCols(mat1, 40000)
+mat2 = coordCols(mat2, 40000)
+
+mat3 = read_tsv("npc_rep1.40kb.raw.chr21.mat", col_names = FALSE)
+mat4 = read_tsv("npc_rep2.40kb.raw.chr21.mat", col_names = FALSE)
+
+mat3 = coordCols(mat3, 40000)
+mat4 = coordCols(mat4, 40000)
+
+comp = TADCompare(mat1, mat2,40000)
+comp2 = TADCompare(mat3, mat4,40000)
+
+
+scores = comp$Gap_Scores
+scores2 = comp2$Gap_Scores
+
+#Identify location of non-differential
+which(scores$Region == 17560000)
+
+non_diff_frame = bind_rows(data.frame(score = scores$TAD_Score1[10:20], frame = "TAD1") %>% mutate(Time = 1:length(score)),
+data.frame(score = scores$TAD_Score2[10:20], frame ="TAD2") %>% mutate(Time = 1:length(score)))
+
+non_diff_plot = ggplot(non_diff_frame, aes(x = Time, y = score, color = frame)) + geom_line() + geom_line(size = 2) +
+      theme_void() + guides(color = FALSE)
+
+#Identify location of shifted
+which(scores$Region == 18840000)
+
+shift_frame = bind_rows(data.frame(score = scores$TAD_Score1[40:50], frame = "TAD1") %>% mutate(Time = 1:length(score)),
+data.frame(score = scores$TAD_Score2[40:50], frame ="TAD2") %>% mutate(Time = 1:length(score)))
+
+shift_plot = ggplot(shift_frame, aes(x = Time, y = score, color = frame)) + geom_line() + geom_line(size = 2) + guides(color = FALSE) + labs(x = "Bin", y = "Boundary Score") + theme_bw(base_size = 24)() + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept=3, linetype="dashed", 
+                color = "red", size=2)
+
+#Identify location of merge
+which(scores$Region == 33920000)
+
+which(scores$Region == 34320000)
+
+which(scores$Region == 34800000)
+
+
+merge_frame = bind_rows(data.frame(score = scores$TAD_Score1[395:425], frame = "TAD1") %>% mutate(Time = 1:length(score)),
+data.frame(score = scores$TAD_Score2[395:425], frame ="TAD2") %>% mutate(Time = 1:length(score)))
+
+merge_plot = ggplot(merge_frame, aes(x = Time, y = score, color = frame)) + geom_line() + geom_line(size = 2) +
+      theme_void() + guides(color = FALSE)  + labs(x = "Bin", y = "Boundary Score") + theme_bw()+ theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept=3, linetype="dashed", 
+                color = "red", size=2)
+
+#Identify location of split
+which(scores$Region == 45960000)
+which(scores$Region == 46360000 )
+which(scores$Region ==  47120000)
+
+split_frame = bind_rows(data.frame(score = scores$TAD_Score1[695:735], frame = "TAD1") %>% mutate(Time = 1:length(score)),
+data.frame(score = scores$TAD_Score2[695:735], frame ="TAD2") %>% mutate(Time = 1:length(score)))
+
+split_plot = ggplot(split_frame, aes(x = Time, y = score, color = frame)) + geom_line() + geom_line(size = 2) +
+      theme_void() + guides(color = FALSE)  + labs(x = "Bin", y = "Boundary Score") + theme_bw(base_size = 24)() + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept=3, linetype="dashed", 
+                color = "red", size=2)
+
+#Identify location of split
+which(scores$Region == 22320000)
+which(scores$Region == 23960000)
+which(scores$Region == 23120000)
+
+
+diff_frame = bind_rows(data.frame(score = scores$TAD_Score1[105:155], frame = "TAD1") %>% mutate(Time = 1:length(score)),
+data.frame(score = scores$TAD_Score2[105:155], frame ="TAD2") %>% mutate(Time = 1:length(score)))
+
+diff_plot = ggplot(diff_frame, aes(x = Time, y = score, color = frame)) + geom_line() + geom_line(size = 2) +
+      theme_void() + guides(color = FALSE)  + labs(x = "Bin", y = "Boundary Score") + theme_bw(base_size = 24)() + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept=3, linetype="dashed", 
+                color = "red", size=2)
+
+#Identify location of strength change
+which(scores2$Region == 9800000)
+
+str_frame = bind_rows(data.frame(score = scores2$TAD_Score1[3:13], frame = "TAD1") %>% mutate(Time = 1:length(score)),
+data.frame(score = scores2$TAD_Score2[3:13], frame ="TAD2") %>% mutate(Time = 1:length(score)))
+
+str_plot = ggplot(str_frame, aes(x = Time, y = score, color = frame)) + geom_line(size = 2) +
+      theme_void() + guides(color = FALSE) + labs(x = "Bin", y = "Boundary Score") + theme_bw(base_size = 24)() + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) + geom_hline(yintercept=3, linetype="dashed", 
+                color = "red", size=2)
+
+
+
+```
+
+```{r}
+ggsave("./manuscript/figures//patt_merge.tiff", merge_plot, dpi=600, height=2, width=2, units="in", scale=1.8)
+
+ggsave("./manuscript/figures//patt_split.tiff", split_plot, dpi=600, height=2, width=2, units="in", scale=1.8)
+
+ggsave("./manuscript/figures//patt_comp.tiff", diff_plot, dpi=600, height=2, width=2, units="in", scale=1.8)
+
+ggsave("./manuscript/figures//patt_shift.tiff", shift_plot, dpi=600, height=2, width=2, units="in", scale=1.8)
+
+ggsave("./manuscript/figures//patt_str.tiff", str_plot, dpi=600, height=2, width=2, units="in", scale=1.8)
+
+
+```

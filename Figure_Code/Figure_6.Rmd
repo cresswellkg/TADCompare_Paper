@@ -1,0 +1,74 @@
+---
+title: "Figure_6"
+author: "Kellen Cresswell"
+date: "April 25, 2019"
+output: pdf_document
+---
+
+```{r}
+source("./Misc_Functions/TimePlot.R")
+```
+
+```{r}
+Time_Course = readRDS("./Results/Time_Results_50kb.rds")
+
+Time_Plot = TimePlot(Time_Course[[19]]) + labs(x = "Time Since Withdrawal")
+```
+
+```{r}
+ggsave("./manuscript/figures//Time_Plot.tiff", Time_Plot, dpi=600, height=3.5, width=5, units="in", scale=2.8)
+```
+
+```{r}
+multi_ob = Time_Course
+
+score_frame = bind_rows(
+  lapply(multi_ob, function(x) {
+    score_sub = x$Full %>% ungroup() %>%
+  arrange(as.numeric(gsub("Sample", "", Sample))) %>% 
+  mutate(Sample = factor(Sample, levels = unique(Sample))) %>% 
+  group_by(Coordinate) %>% 
+  filter(any(TAD_Score>3))
+    
+  Cats = x$Consensus %>% dplyr::select(Coordinate, Category)
+
+  score_sub =left_join(score_sub, Cats)
+  return(score_sub)
+    
+    }))
+
+#Pull out category and left join to long frame
+
+score_frame =score_frame %>% group_by(Sample, Category) %>% summarise(upper = sd(as.numeric(TAD_Score), na.rm = TRUE)*1.96, TAD_Score = mean(as.numeric(TAD_Score), na.rm = TRUE))
+
+score_frame =score_frame %>% mutate(upp_int = TAD_Score+upper, low_int = TAD_Score-upper)
+
+#  highly common (green), early appearing, late appearing, early disappearing, late disappearing, dynamic (red)
+
+score_frame = score_frame %>% mutate(Category = factor(Category, levels = c("Highly Common TAD", "Early Appearing TAD", "Late Appearing TAD", "Early Disappearing TAD", "Late Disappearing TAD", "Dynamic TAD")))
+
+library(scales)
+cols <- hue_pal()(6)
+
+trend_plot = ggplot(score_frame, 
+             aes(x = Sample, y = TAD_Score, color = Category))  + geom_line(aes(y = TAD_Score, group = Category),
+                                          size = 4) +
+        scale_x_discrete(labels=unique(score_frame$Sample), 
+                            expand=c(0,0.1)) +
+        theme(text = element_text(size=24), 
+              axis.line = element_line(colour = "black"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(),
+              panel.background = element_blank(),
+              axis.text.x = element_text(size = 24),
+              axis.text.y = element_text(size = 24)) + labs(x = "Time Point", y=  "Boundary Score") + geom_hline(yintercept = 3,  linetype="dashed", 
+                color = "red", size = 2) + theme(legend.text = element_text(size = 24)) +  guides(colour = guide_legend(ncol = 1)) +
+  scale_color_manual(values = rev(cols)[c(4, 1:3,5:6)])
+
+```
+
+```{r}
+ggsave("./manuscript/figures//Temporal_Cat_Plot.tiff", trend_plot, dpi=600, height=5, width=7, units="in", scale=1.8)
+
+```
