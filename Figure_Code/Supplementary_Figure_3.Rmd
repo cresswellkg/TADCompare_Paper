@@ -8,7 +8,7 @@ output: pdf_document
 ```{r}
 require(readr)
 require(dplyr)
-source("TADCompare.R")
+#source("TADCompare.R")
 source("./Misc_Functions/coordCols.R")
 ```
 

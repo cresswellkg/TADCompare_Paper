@@ -1,5 +1,5 @@
 ---
-title: "Figure 9/Supplementary Figure 5"
+title: "Figure 9"
 author: "Kellen Cresswell"
 date: "April 30, 2019"
 output: pdf_document

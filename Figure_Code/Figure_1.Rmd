@@ -9,7 +9,7 @@ output: pdf_document
 require(ggplot2)
 require(readr)
 require(dplyr)
-source("Misc_Functions/abs_log.R")
+source("./Misc_Functions/abs_log.R")
 ```
 
 ```{r}
