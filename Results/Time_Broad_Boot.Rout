@@ -1,0 +1,1705 @@
+
+R version 3.4.1 (2017-06-30) -- "Single Candle"
+Copyright (C) 2017 The R Foundation for Statistical Computing
+Platform: x86_64-redhat-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> require(readr)
+Loading required package: readr
+> require(dplyr)
+Loading required package: dplyr
+
+Attaching package: ‘dplyr’
+
+The following objects are masked from ‘package:stats’:
+
+    filter, lag
+
+The following objects are masked from ‘package:base’:
+
+    intersect, setdiff, setequal, union
+
+> require(tidyr)
+Loading required package: tidyr
+> require(broom)
+Loading required package: broom
+> source("CTCFatBoundary.R")
+> source("bootstrapBoundaries.R")
+> 
+> Time_50kb = readRDS("./Results/Time_Results_50kb.rds")
+> 
+> Consensus_50kb = lapply(Time_50kb, function(x) x$Consensus)
+> 
+> index = 1
+> for (i in paste0("chr", 22:1)) {
++   
++ Consensus_50kb[[index]] = data.frame(chr = i, Consensus_50kb[[index]])
++ index = index+1
++ }
+> 
+> Consensus_50kb_Bound = bind_rows(Consensus_50kb) %>% dplyr::select(-Consensus_Score)
+There were 23 warnings (use warnings() to see them)
+> 
+> Consensus_50kb = bind_rows(Consensus_50kb) %>% dplyr::select(-Coordinate, -Consensus_Score)
+There were 23 warnings (use warnings() to see them)
+> 
+> TAD_Rows = apply(Consensus_50kb[,c(2:5)],1, function(x) any(x>3))
+> 
+> Consensus_50kb = Consensus_50kb[TAD_Rows,]
+> 
+> Consensus_50kb_Bound = Consensus_50kb_Bound[TAD_Rows,]
+> 
+> Consensus_Sum = Consensus_50kb %>% group_by(chr) %>% mutate(Total = n()) %>% 
++   group_by(Category, chr) %>% summarise(Category_Counts = n()/Total[1])
+> 
+> require(readr)
+> require(dplyr)
+> require(tidyr)
+> require(broom)
+> source("CTCFatBoundary.R")
+> source("bootstrapBoundaries.R")
+> 
+> Time_50kb = readRDS("./Results/Time_Results_50kb.rds")
+> 
+> Consensus_50kb = lapply(Time_50kb, function(x) x$Consensus)
+> 
+> index = 1
+> for (i in paste0("chr", 22:1)) {
++   
++ Consensus_50kb[[index]] = data.frame(chr = i, Consensus_50kb[[index]])
++ index = index+1
++ }
+> 
+> Consensus_50kb_Bound = bind_rows(Consensus_50kb) %>% dplyr::select(-Consensus_Score)
+There were 23 warnings (use warnings() to see them)
+> 
+> Consensus_50kb = bind_rows(Consensus_50kb) %>% dplyr::select(-Coordinate, -Consensus_Score)
+There were 23 warnings (use warnings() to see them)
+> 
+> TAD_Rows = apply(Consensus_50kb[,c(2:5)],1, function(x) any(x>3))
+> 
+> Consensus_50kb = Consensus_50kb[TAD_Rows,]
+> 
+> Consensus_50kb_Bound = Consensus_50kb_Bound[TAD_Rows,]
+> 
+> Consensus_Sum = Consensus_50kb %>% group_by(chr) %>% mutate(Total = n()) %>% 
++   group_by(Category, chr) %>% summarise(Category_Counts = n()/Total[1])
+> require(readr)
+> require(dplyr)
+> require(tidyr)
+> require(broom)
+> source("CTCFatBoundary.R")
+> source("bootstrapBoundaries.R")
+> 
+> Time_50kb = readRDS("./Results/Time_Results_50kb.rds")
+> 
+> Consensus_50kb = lapply(Time_50kb, function(x) x$Consensus)
+> 
+> index = 1
+> for (i in paste0("chr", 22:1)) {
++   
++ Consensus_50kb[[index]] = data.frame(chr = i, Consensus_50kb[[index]])
++ index = index+1
++ }
+> 
+> Consensus_50kb_Bound = bind_rows(Consensus_50kb) %>% dplyr::select(-Consensus_Score)
+There were 23 warnings (use warnings() to see them)
+> 
+> Consensus_50kb = bind_rows(Consensus_50kb) %>% dplyr::select(-Coordinate, -Consensus_Score)
+There were 23 warnings (use warnings() to see them)
+> 
+> TAD_Rows = apply(Consensus_50kb[,c(2:5)],1, function(x) any(x>3))
+> 
+> Consensus_50kb = Consensus_50kb[TAD_Rows,]
+> 
+> Consensus_50kb_Bound = Consensus_50kb_Bound[TAD_Rows,]
+> 
+> Consensus_Sum = Consensus_50kb %>% group_by(chr) %>% mutate(Total = n()) %>% 
++   group_by(Category, chr) %>% summarise(Category_Counts = n()/Total[1])
+> 
+> colnames(Consensus_50kb_Bound)[2] = "end"
+> 
+> broad_path = read_table2("wgEncodeBroadHmmGm12878HMM.bed.gz", col_names = FALSE)
+Parsed with column specification:
+cols(
+  X1 = col_character(),
+  X2 = col_integer(),
+  X3 = col_integer(),
+  X4 = col_character(),
+  X5 = col_integer(),
+  X6 = col_character(),
+  X7 = col_integer(),
+  X8 = col_integer(),
+  X9 = col_character()
+)
+> 
+> broad_path = broad_path[,1:4] 
+> 
+> colnames(broad_path) = c("chr", "start", "end", "state")
+> 
+> Broad_En =lapply(unique(broad_path$state), function(y) {
++   curr_chrom = broad_path %>% filter(state == y) %>% dplyr::select(chr,start,end)
++   curr_res = list()
++   index =  1
++   for (i in unique(Consensus_50kb_Bound$Category)) {
++     
++   curr_res[[index]] = Consensus_50kb_Bound %>% filter( Category == i) %>% group_by(chr) %>%  do(tidy(bootstrapBoundaries(.$chr[1],., curr_chrom, 40000,40000, 10000 ))) %>% mutate(Cutoff = i)
++   index = index+1
++   }
++   curr_res = bind_rows(curr_res)
++   curr_res = curr_res %>% mutate(state = y)
++   print(curr_res)
++   return(curr_res)
++ })
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+# A tibble: 87 x 5
+# Groups:   chr [22]
+   chr   perm_p             type       Cutoff           state            
+   <chr> <chr>              <chr>      <chr>            <chr>            
+ 1 chr1  1                  depletion  Late Transit TAD 15_Repetitive/CNV
+ 2 chr10 0                  neither    Late Transit TAD 15_Repetitive/CNV
+ 3 chr11 1                  depletion  Late Transit TAD 15_Repetitive/CNV
+ 4 chr12 1                  depletion  Late Transit TAD 15_Repetitive/CNV
+ 5 chr13 0.205179482051795  enrichment Late Transit TAD 15_Repetitive/CNV
+ 6 chr14 0.721627837216278  enrichment Late Transit TAD 15_Repetitive/CNV
+ 7 chr15 0.0204979502049795 enrichment Late Transit TAD 15_Repetitive/CNV
+ 8 chr16 0                  neither    Late Transit TAD 15_Repetitive/CNV
+ 9 chr17 0                  neither    Late Transit TAD 15_Repetitive/CNV
+10 chr18 1                  depletion  Late Transit TAD 15_Repetitive/CNV
+# … with 77 more rows
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+# A tibble: 87 x 5
+# Groups:   chr [22]
+   chr   perm_p             type       Cutoff           state            
+   <chr> <chr>              <chr>      <chr>            <chr>            
+ 1 chr1  0.0921907809219078 enrichment Late Transit TAD 13_Heterochrom/lo
+ 2 chr10 0.0044995500449955 enrichment Late Transit TAD 13_Heterochrom/lo
+ 3 chr11 0.0130986901309869 enrichment Late Transit TAD 13_Heterochrom/lo
+ 4 chr12 0.0002999700029997 enrichment Late Transit TAD 13_Heterochrom/lo
+ 5 chr13 0.0045995400459954 enrichment Late Transit TAD 13_Heterochrom/lo
+ 6 chr14 0.0371962803719628 enrichment Late Transit TAD 13_Heterochrom/lo
+ 7 chr15 0.945805419458054  enrichment Late Transit TAD 13_Heterochrom/lo
+ 8 chr16 0.0352964703529647 enrichment Late Transit TAD 13_Heterochrom/lo
+ 9 chr17 0.551344865513449  enrichment Late Transit TAD 13_Heterochrom/lo
+10 chr18 0.403359664033597  enrichment Late Transit TAD 13_Heterochrom/lo
+# … with 77 more rows
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+# A tibble: 87 x 5
+# Groups:   chr [22]
+   chr   perm_p             type       Cutoff           state      
+   <chr> <chr>              <chr>      <chr>            <chr>      
+ 1 chr1  0.0037996200379962 enrichment Late Transit TAD 8_Insulator
+ 2 chr10 0.0001999800019998 enrichment Late Transit TAD 8_Insulator
+ 3 chr11 0.0002999700029997 enrichment Late Transit TAD 8_Insulator
+ 4 chr12 9.99900009999e-05  enrichment Late Transit TAD 8_Insulator
+ 5 chr13 0.0037996200379962 enrichment Late Transit TAD 8_Insulator
+ 6 chr14 0.0261973802619738 enrichment Late Transit TAD 8_Insulator
+ 7 chr15 0.0031996800319968 enrichment Late Transit TAD 8_Insulator
+ 8 chr16 0.129087091290871  enrichment Late Transit TAD 8_Insulator
+ 9 chr17 0.950604939506049  enrichment Late Transit TAD 8_Insulator
+10 chr18 0.0166983301669833 enrichment Late Transit TAD 8_Insulator
+# … with 77 more rows
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+# A tibble: 87 x 5
+# Groups:   chr [22]
+   chr   perm_p             type       Cutoff           state      
+   <chr> <chr>              <chr>      <chr>            <chr>      
+ 1 chr1  0.321667833216678  enrichment Late Transit TAD 11_Weak_Txn
+ 2 chr10 1                  depletion  Late Transit TAD 11_Weak_Txn
+ 3 chr11 1                  depletion  Late Transit TAD 11_Weak_Txn
+ 4 chr12 1                  depletion  Late Transit TAD 11_Weak_Txn
+ 5 chr13 0.499350064993501  enrichment Late Transit TAD 11_Weak_Txn
+ 6 chr14 1                  depletion  Late Transit TAD 11_Weak_Txn
+ 7 chr15 1                  depletion  Late Transit TAD 11_Weak_Txn
+ 8 chr16 0.809319068093191  enrichment Late Transit TAD 11_Weak_Txn
+ 9 chr17 1                  depletion  Late Transit TAD 11_Weak_Txn
+10 chr18 0.0155984401559844 enrichment Late Transit TAD 11_Weak_Txn
+# … with 77 more rows
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+# A tibble: 87 x 5
+# Groups:   chr [22]
+   chr   perm_p            type       Cutoff           state          
+   <chr> <chr>             <chr>      <chr>            <chr>          
+ 1 chr1  0.858814118588141 enrichment Late Transit TAD 7_Weak_Enhancer
+ 2 chr10 1                 depletion  Late Transit TAD 7_Weak_Enhancer
+ 3 chr11 1                 depletion  Late Transit TAD 7_Weak_Enhancer
+ 4 chr12 1                 depletion  Late Transit TAD 7_Weak_Enhancer
+ 5 chr13 0.621337866213379 enrichment Late Transit TAD 7_Weak_Enhancer
+ 6 chr14 1                 depletion  Late Transit TAD 7_Weak_Enhancer
+ 7 chr15 1                 depletion  Late Transit TAD 7_Weak_Enhancer
+ 8 chr16 1                 depletion  Late Transit TAD 7_Weak_Enhancer
+ 9 chr17 1                 depletion  Late Transit TAD 7_Weak_Enhancer
+10 chr18 1                 depletion  Late Transit TAD 7_Weak_Enhancer
+# … with 77 more rows
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+# A tibble: 87 x 5
+# Groups:   chr [22]
+   chr   perm_p            type       Cutoff           state            
+   <chr> <chr>             <chr>      <chr>            <chr>            
+ 1 chr1  1                 depletion  Late Transit TAD 10_Txn_Elongation
+ 2 chr10 1                 depletion  Late Transit TAD 10_Txn_Elongation
+ 3 chr11 0.93990600939906  enrichment Late Transit TAD 10_Txn_Elongation
+ 4 chr12 1                 depletion  Late Transit TAD 10_Txn_Elongation
+ 5 chr13 0.221777822217778 enrichment Late Transit TAD 10_Txn_Elongation
+ 6 chr14 1                 depletion  Late Transit TAD 10_Txn_Elongation
+ 7 chr15 1                 depletion  Late Transit TAD 10_Txn_Elongation
+ 8 chr16 1                 depletion  Late Transit TAD 10_Txn_Elongation
+ 9 chr17 1                 depletion  Late Transit TAD 10_Txn_Elongation
+10 chr18 0.181481851814819 enrichment Late Transit TAD 10_Txn_Elongation
+# … with 77 more rows
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+# A tibble: 87 x 5
+# Groups:   chr [22]
+   chr   perm_p            type       Cutoff           state           
+   <chr> <chr>             <chr>      <chr>            <chr>           
+ 1 chr1  0.932006799320068 enrichment Late Transit TAD 9_Txn_Transition
+ 2 chr10 1                 depletion  Late Transit TAD 9_Txn_Transition
+ 3 chr11 1                 depletion  Late Transit TAD 9_Txn_Transition
+ 4 chr12 1                 depletion  Late Transit TAD 9_Txn_Transition
+ 5 chr13 0.168483151684832 enrichment Late Transit TAD 9_Txn_Transition
+ 6 chr14 0.904009599040096 enrichment Late Transit TAD 9_Txn_Transition
+ 7 chr15 1                 depletion  Late Transit TAD 9_Txn_Transition
+ 8 chr16 1                 depletion  Late Transit TAD 9_Txn_Transition
+ 9 chr17 1                 depletion  Late Transit TAD 9_Txn_Transition
+10 chr18 0.916808319168083 enrichment Late Transit TAD 9_Txn_Transition
+# … with 77 more rows
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+# A tibble: 87 x 5
+# Groups:   chr [22]
+   chr   perm_p             type       Cutoff           state          
+   <chr> <chr>              <chr>      <chr>            <chr>          
+ 1 chr1  0.0505949405059494 enrichment Late Transit TAD 2_Weak_Promoter
+ 2 chr10 0.288471152884712  enrichment Late Transit TAD 2_Weak_Promoter
+ 3 chr11 0.0147985201479852 enrichment Late Transit TAD 2_Weak_Promoter
+ 4 chr12 0.397960203979602  enrichment Late Transit TAD 2_Weak_Promoter
+ 5 chr13 0.37966203379662   enrichment Late Transit TAD 2_Weak_Promoter
+ 6 chr14 0.31986801319868   enrichment Late Transit TAD 2_Weak_Promoter
+ 7 chr15 1                  depletion  Late Transit TAD 2_Weak_Promoter
+ 8 chr16 0.161583841615838  enrichment Late Transit TAD 2_Weak_Promoter
+ 9 chr17 0.0675932406759324 enrichment Late Transit TAD 2_Weak_Promoter
+10 chr18 0.0110988901109889 enrichment Late Transit TAD 2_Weak_Promoter
+# … with 77 more rows
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+# A tibble: 87 x 5
+# Groups:   chr [22]
+   chr   perm_p             type       Cutoff           state            
+   <chr> <chr>              <chr>      <chr>            <chr>            
+ 1 chr1  0.378962103789621  enrichment Late Transit TAD 1_Active_Promoter
+ 2 chr10 1                  depletion  Late Transit TAD 1_Active_Promoter
+ 3 chr11 1                  depletion  Late Transit TAD 1_Active_Promoter
+ 4 chr12 0.969003099690031  enrichment Late Transit TAD 1_Active_Promoter
+ 5 chr13 1                  depletion  Late Transit TAD 1_Active_Promoter
+ 6 chr14 0.236676332366763  enrichment Late Transit TAD 1_Active_Promoter
+ 7 chr15 1                  depletion  Late Transit TAD 1_Active_Promoter
+ 8 chr16 0.459054094590541  enrichment Late Transit TAD 1_Active_Promoter
+ 9 chr17 1                  depletion  Late Transit TAD 1_Active_Promoter
+10 chr18 0.0195980401959804 enrichment Late Transit TAD 1_Active_Promoter
+# … with 77 more rows
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+# A tibble: 87 x 5
+# Groups:   chr [22]
+   chr   perm_p            type       Cutoff           state            
+   <chr> <chr>             <chr>      <chr>            <chr>            
+ 1 chr1  0.758924107589241 enrichment Late Transit TAD 3_Poised_Promoter
+ 2 chr10 1                 depletion  Late Transit TAD 3_Poised_Promoter
+ 3 chr11 0.933506649335066 enrichment Late Transit TAD 3_Poised_Promoter
+ 4 chr12 0.798220177982202 enrichment Late Transit TAD 3_Poised_Promoter
+ 5 chr13 1                 depletion  Late Transit TAD 3_Poised_Promoter
+ 6 chr14 0.791320867913209 enrichment Late Transit TAD 3_Poised_Promoter
+ 7 chr15 1                 depletion  Late Transit TAD 3_Poised_Promoter
+ 8 chr16 1                 depletion  Late Transit TAD 3_Poised_Promoter
+ 9 chr17 1                 depletion  Late Transit TAD 3_Poised_Promoter
+10 chr18 0                 neither    Late Transit TAD 3_Poised_Promoter
+# … with 77 more rows
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+# A tibble: 87 x 5
+# Groups:   chr [22]
+   chr   perm_p             type       Cutoff           state       
+   <chr> <chr>              <chr>      <chr>            <chr>       
+ 1 chr1  1                  depletion  Late Transit TAD 12_Repressed
+ 2 chr10 1                  depletion  Late Transit TAD 12_Repressed
+ 3 chr11 0.0724927507249275 enrichment Late Transit TAD 12_Repressed
+ 4 chr12 0.754224577542246  enrichment Late Transit TAD 12_Repressed
+ 5 chr13 1                  depletion  Late Transit TAD 12_Repressed
+ 6 chr14 0.102089791020898  enrichment Late Transit TAD 12_Repressed
+ 7 chr15 1                  depletion  Late Transit TAD 12_Repressed
+ 8 chr16 0.488251174882512  enrichment Late Transit TAD 12_Repressed
+ 9 chr17 1                  depletion  Late Transit TAD 12_Repressed
+10 chr18 1                  depletion  Late Transit TAD 12_Repressed
+# … with 77 more rows
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+# A tibble: 87 x 5
+# Groups:   chr [22]
+   chr   perm_p             type       Cutoff           state          
+   <chr> <chr>              <chr>      <chr>            <chr>          
+ 1 chr1  0.284571542845715  enrichment Late Transit TAD 6_Weak_Enhancer
+ 2 chr10 0.641535846415358  enrichment Late Transit TAD 6_Weak_Enhancer
+ 3 chr11 0.0865913408659134 enrichment Late Transit TAD 6_Weak_Enhancer
+ 4 chr12 0.777122287771223  enrichment Late Transit TAD 6_Weak_Enhancer
+ 5 chr13 0.0747925207479252 enrichment Late Transit TAD 6_Weak_Enhancer
+ 6 chr14 1                  depletion  Late Transit TAD 6_Weak_Enhancer
+ 7 chr15 1                  depletion  Late Transit TAD 6_Weak_Enhancer
+ 8 chr16 0.161283871612839  enrichment Late Transit TAD 6_Weak_Enhancer
+ 9 chr17 0.223277672232777  enrichment Late Transit TAD 6_Weak_Enhancer
+10 chr18 0.0045995400459954 enrichment Late Transit TAD 6_Weak_Enhancer
+# … with 77 more rows
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+# A tibble: 87 x 5
+# Groups:   chr [22]
+   chr   perm_p             type       Cutoff           state            
+   <chr> <chr>              <chr>      <chr>            <chr>            
+ 1 chr1  1                  depletion  Late Transit TAD 14_Repetitive/CNV
+ 2 chr10 1                  depletion  Late Transit TAD 14_Repetitive/CNV
+ 3 chr11 1                  depletion  Late Transit TAD 14_Repetitive/CNV
+ 4 chr12 1                  depletion  Late Transit TAD 14_Repetitive/CNV
+ 5 chr13 0.07999200079992   enrichment Late Transit TAD 14_Repetitive/CNV
+ 6 chr14 1                  depletion  Late Transit TAD 14_Repetitive/CNV
+ 7 chr15 0.0297970202979702 enrichment Late Transit TAD 14_Repetitive/CNV
+ 8 chr16 1                  depletion  Late Transit TAD 14_Repetitive/CNV
+ 9 chr17 0.0302969703029697 enrichment Late Transit TAD 14_Repetitive/CNV
+10 chr18 1                  enrichment Late Transit TAD 14_Repetitive/CNV
+# … with 77 more rows
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+# A tibble: 87 x 5
+# Groups:   chr [22]
+   chr   perm_p            type       Cutoff           state            
+   <chr> <chr>             <chr>      <chr>            <chr>            
+ 1 chr1  0.985801419858014 enrichment Late Transit TAD 5_Strong_Enhancer
+ 2 chr10 1                 depletion  Late Transit TAD 5_Strong_Enhancer
+ 3 chr11 1                 depletion  Late Transit TAD 5_Strong_Enhancer
+ 4 chr12 1                 depletion  Late Transit TAD 5_Strong_Enhancer
+ 5 chr13 1                 depletion  Late Transit TAD 5_Strong_Enhancer
+ 6 chr14 1                 depletion  Late Transit TAD 5_Strong_Enhancer
+ 7 chr15 1                 depletion  Late Transit TAD 5_Strong_Enhancer
+ 8 chr16 1                 depletion  Late Transit TAD 5_Strong_Enhancer
+ 9 chr17 1                 depletion  Late Transit TAD 5_Strong_Enhancer
+10 chr18 1                 depletion  Late Transit TAD 5_Strong_Enhancer
+# … with 77 more rows
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr22"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+[1] "chr1"
+[1] "chr10"
+[1] "chr11"
+[1] "chr12"
+[1] "chr13"
+[1] "chr14"
+[1] "chr15"
+[1] "chr16"
+[1] "chr17"
+[1] "chr18"
+[1] "chr19"
+[1] "chr2"
+[1] "chr20"
+[1] "chr21"
+[1] "chr3"
+[1] "chr4"
+[1] "chr5"
+[1] "chr6"
+[1] "chr7"
+[1] "chr8"
+[1] "chr9"
+# A tibble: 87 x 5
+# Groups:   chr [22]
+   chr   perm_p            type       Cutoff           state            
+   <chr> <chr>             <chr>      <chr>            <chr>            
+ 1 chr1  0.493050694930507 enrichment Late Transit TAD 4_Strong_Enhancer
+ 2 chr10 1                 depletion  Late Transit TAD 4_Strong_Enhancer
+ 3 chr11 1                 depletion  Late Transit TAD 4_Strong_Enhancer
+ 4 chr12 0.517048295170483 enrichment Late Transit TAD 4_Strong_Enhancer
+ 5 chr13 1                 depletion  Late Transit TAD 4_Strong_Enhancer
+ 6 chr14 1                 depletion  Late Transit TAD 4_Strong_Enhancer
+ 7 chr15 0.96980301969803  enrichment Late Transit TAD 4_Strong_Enhancer
+ 8 chr16 1                 depletion  Late Transit TAD 4_Strong_Enhancer
+ 9 chr17 0.983801619838016 enrichment Late Transit TAD 4_Strong_Enhancer
+10 chr18 1                 depletion  Late Transit TAD 4_Strong_Enhancer
+# … with 77 more rows
+There were 50 or more warnings (use warnings() to see the first 50)
+> 
+> Broad_En = bind_rows(Broad_En)
+> 
+> saveRDS(Broad_En, "Broad_Time_Boot.rds")
+> 
+> proc.time()
+    user   system  elapsed 
+1694.254    1.771 1697.530 
