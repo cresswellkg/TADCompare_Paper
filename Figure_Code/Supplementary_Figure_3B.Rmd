@@ -1,0 +1,92 @@
+---
+title: "Supplementary Figure 3B, DiffPlot demo"
+author: "Mikhail Dozmorov"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: no
+  html_document:
+    theme: cerulean
+    toc: yes
+---
+
+```{r setup, echo=FALSE, message=FALSE, warning=FALSE}
+# Set up the environment
+library(knitr)
+opts_chunk$set(cache.path='cache/', fig.path='img/', cache=F, tidy=T, fig.keep='high', echo=F, dpi=100, warnings=F, message=F, comment=NA, warning=F, results='as.is', fig.width = 10, fig.height = 6) #out.width=700, 
+library(pander)
+panderOptions('table.split.table', Inf)
+set.seed(1)
+library(dplyr)
+options(stringsAsFactors = FALSE)
+```
+
+```{r libraries}
+library(dplyr)
+library(ggplot2)
+library(TADCompare)
+library(SpectralTAD)
+library(grid)
+library(gridExtra)
+```
+
+```{r settings}
+# Example of using Schmitt data used for Supplementary Figure 3B
+# Data source: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE87112
+PATH="/Users/mdozmorov/Documents/nobackup/TADCompare/Schmitt_2016/"
+file1       <- file.path(PATH, "npc.40Kb.raw.chr4.mat")
+file2       <- file.path(PATH, "msc.40Kb.raw.chr4.mat")
+start_coord <- 10500000
+end_coord   <- 18600000
+# Set resolution
+res <- 40000 
+```
+
+```{r}
+# Read in matrices  
+mtx1 = as.matrix(read.table(file1))
+mtx2 = as.matrix(read.table(file2))
+# Set up column names
+colnames(mtx1) = colnames(mtx2) = seq(0, (nrow(mtx1) - 1) * 40000, 40000 )
+# Check dimensions
+dim(mtx1)
+dim(mtx2)
+```
+
+```{r}
+# Globally normalize matrices
+(mtx1_total <- sum(mtx1))
+(mtx2_total <- sum(mtx2))
+(scaling_factor <- mtx1_total / mtx2_total)
+# Rescale matrices depending on which matrix is smaller
+if (mtx1_total > mtx2_total) { 
+  mtx2 <- mtx2 * scaling_factor
+} else {
+  mtx1 <- mtx1 * (1 / scaling_factor)
+}
+```
+
+```{r}
+# Detect differential TADs
+TD_Compare=TADCompare(mtx1, mtx2, resolution = res)
+#Running the plotting algorithm
+DiffPlot(tad_diff    = TD_Compare, 
+         cont_mat1   = mtx1,
+         cont_mat2   = mtx2,
+         resolution  = res,
+         start_coord = start_coord,
+         end_coord   = end_coord,
+         #         pre_tad     = Combined_Bed,
+         show_types  = TRUE,
+         point_size  = 3,
+         palette     = "RdYlBu",
+         max_height = 10,
+         rel_heights = c(1, 2))
+
+ggsave("Supplementary_Figure_3B.tiff", width = 6.63, height = 4, units = "in", dpi = 600, compression = "lzw")
+```
+
+
+```{r session_info}
+xfun::session_info()
+```
